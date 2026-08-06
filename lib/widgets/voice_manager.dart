@@ -156,7 +156,7 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
         (currentVoicePath.startsWith('assets/') || File(currentVoicePath).existsSync());
 
     return Column(
-      crossAxisAlignment: CrossAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

@@ -13,7 +13,7 @@ class ThemePicker extends ConsumerWidget {
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
     return Column(
-      crossAxisAlignment: CrossAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'App Theme Mode',

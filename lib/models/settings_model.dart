@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/voice.dart'; 
 
 enum AppTheme { obsidian, sepia, light, pitchBlack }
 enum BatchMode { sentenceCount, pageBased }

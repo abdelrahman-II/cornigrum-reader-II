@@ -88,7 +88,7 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
         ),
         content: const SingleChildScrollView(
           child: Column(
-            crossAxisAlignment: CrossAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
@@ -126,7 +126,7 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
     final fileName = modelPath.isNotEmpty ? p.basename(modelPath) : 'None';
 
     return Column(
-      crossAxisAlignment: CrossAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -160,7 +160,7 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       hasModel ? 'Model Loaded' : 'No Model Loaded',

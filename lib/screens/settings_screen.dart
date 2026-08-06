@@ -130,7 +130,7 @@ class SettingsScreen extends ConsumerWidget {
           ListTile(
             title: const Text('Sentence Queue / Prefetch (1 to 10)'),
             subtitle: Column(
-              crossAxisAlignment: CrossAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Slider(
                   value: settings.batchSize.toDouble().clamp(1.0, 10.0),

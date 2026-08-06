@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:kokoro_tts_flutter/kokoro_tts_flutter.dart';
@@ -333,7 +334,7 @@ class CornigrumIsolateBridge {
   }
 
   List<int> _int16ToBytes(int value) {
-    final b = ByteData(2)..setInt16(0, value, Endian.little);
+    final b = ByteData(2).setInt16(0, value, Endian.little);
     return b.buffer.asUint8List();
   }
 

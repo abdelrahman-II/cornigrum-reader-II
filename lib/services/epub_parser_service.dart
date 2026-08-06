@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import '../models/book.dart';
+import '../models/chapter.dart';
 
 class EpubParserService {
   /// Parses imported TXT or EPUB files into a structured Book instance

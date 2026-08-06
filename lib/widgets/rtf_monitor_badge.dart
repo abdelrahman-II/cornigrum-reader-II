@@ -37,14 +37,14 @@ class RtfMonitorBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.bolt, size: 14, color: Colors.emerald),
+          const Icon(Icons.bolt, size: 14, color: Color(0xFF10B981)),
           const SizedBox(width: 4),
           Text(
             'RTF: ${rtf}x',
             style: const TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.bold,
-              color: Colors.emerald,
+              color: Color(0xFF10B981),
               fontFamily: 'monospace',
             ),
           ),
@@ -58,7 +58,7 @@ class RtfMonitorBadge extends StatelessWidget {
             style: TextStyle(
               fontSize: 10,
               fontFamily: 'monospace',
-              color: isDark ? Colors.white70 : Colors.black80,
+              color: isDark ? Colors.white70 : Colors.black.withOpacity(0.8),
             ),
           ),
           const SizedBox(width: 8),
@@ -83,7 +83,7 @@ class RtfMonitorBadge extends StatelessWidget {
             style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.bold,
-              color: Colors.emerald,
+              color: Color(0xFF10B981),
             ),
           ),
         ],

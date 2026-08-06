@@ -34,7 +34,7 @@ class _DelimiterEditorState extends ConsumerState<DelimiterEditor> {
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
     return Column(
-      crossAxisAlignment: CrossAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
           'Text Parsing Delimiters',

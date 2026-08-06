@@ -4,6 +4,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../models/settings_model.dart';
 import '../services/storage_service.dart';
+import '../models/voice.dart';
 
 final storageServiceProvider = Provider<StorageService>((ref) {
   throw UnimplementedError('storageServiceProvider must be overridden in ProviderScope');
