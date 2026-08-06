@@ -50,19 +50,19 @@ class BookParser {
     final bytes = await file.readAsBytes();
     final epubBook = await EpubReader.readBook(bytes);
 
-    final title = epubBook.Title ?? p.basenameWithoutExtension(file.path);
-    final author = epubBook.Author ?? 'Unknown Author';
+    final title = epubBook.title ?? p.basenameWithoutExtension(file.path);
+    final author = epubBook.author ?? 'Unknown Author';
 
     final chapters = <Chapter>[];
     int chapterIdx = 0;
 
-    if (epubBook.Chapters != null) {
-      for (final ch in epubBook.Chapters!) {
+    if (epubBook.chapters != null) {
+      for (final ch in epubBook.chapters!) {
         final text = _extractTextFromChapter(ch);
         if (text.trim().isNotEmpty) {
           chapters.add(Chapter(
             id: 'ch_$chapterIdx',
-            title: ch.Title ?? 'Chapter ${chapterIdx + 1}',
+            title: ch.title ?? 'Chapter ${chapterIdx + 1}',
             content: text,
             sentenceCount: 0,
             currentSentenceIndex: 0,
@@ -74,11 +74,11 @@ class BookParser {
     }
 
     if (chapters.isEmpty) {
-      final allHtml = epubBook.Content?.Html;
+      final allHtml = epubBook.content?.html;
       if (allHtml != null && allHtml.isNotEmpty) {
         final buffer = StringBuffer();
         for (final htmlFile in allHtml.values) {
-          final text = _cleanHtml(htmlFile.Content ?? '');
+          final text = _cleanHtml(htmlFile.content ?? '');
           buffer.writeln(text);
         }
         chapters.add(Chapter(
@@ -107,11 +107,11 @@ class BookParser {
 
   static String _extractTextFromChapter(EpubChapter chapter) {
     final buffer = StringBuffer();
-    if (chapter.HtmlContent != null) {
-      buffer.writeln(_cleanHtml(chapter.HtmlContent!));
+    if (chapter.htmlContent != null) {
+      buffer.writeln(_cleanHtml(chapter.htmlContent!));
     }
-    if (chapter.SubChapters != null) {
-      for (final sub in chapter.SubChapters!) {
+    if (chapter.subChapters != null) {
+      for (final sub in chapter.subChapters!) {
         buffer.writeln(_extractTextFromChapter(sub));
       }
     }
