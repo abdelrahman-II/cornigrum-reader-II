@@ -38,12 +38,53 @@ jobs:
         run: |
           flutter pub get
 
-      - name: Build Android APK (Release)
+      # ─── Auto-Fix Warnings & Format ─────────────────────
+      - name: Apply Automatic Fixes & Format
         run: |
-          flutter build apk --release --no-tree-shake-icons
+          dart fix --apply
+          dart format .
 
-      - name: Upload Release APK
-        uses: actions/upload-artifact@v4
+      # ─── Generate Launcher Icons ────────────────────────
+      - name: Generate Launcher Icons
+        run: dart run flutter_launcher_icons
+
+      # ─── Code Generation ────────────────────────────────
+      - name: Run build_runner
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+
+      # ─── Analyze ────────────────────────────────────────
+      - name: Analyze Dart code
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      # ─── Build Release APK ──────────────────────────────
+      - name: Build release APK
+        run: |
+          flutter build apk --release \
+            --dart-define=FLUTTER_BUILD_NAME=1.0.0 \
+            --dart-define=FLUTTER_BUILD_NUMBER=1
+
+      # ─── Upload Directly as APK (GitHub Release) ────────
+      - name: Create Nightly Release & Upload APK
+        uses: softprops/action-gh-release@v2
         with:
-          name: cornigrum-reader-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          tag_name: nightly-build
+          name: "CorNigrum Reader (Latest Build)"
+          body: "أحدث نسخة تجريبية جاهزة للتثبيت المباشر من CorNigrum Reader."
+          draft: false
+          prerelease: true
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+      # - name: Build Android APK (Release)
+      #   run: |
+      #     flutter build apk --release --no-tree-shake-icons
+
+      # - name: Upload Release APK
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: cornigrum-reader-apk
+      #     path: build/app/outputs/flutter-apk/app-release.apk
