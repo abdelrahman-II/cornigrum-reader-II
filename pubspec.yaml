@@ -1,0 +1,78 @@
+name: cornigrum_reader
+description: "CorNigrum Reader — Offline AI TTS Book Reader with Kokoro-82M ONNX"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+  flutter: '>=3.16.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ─── FFI & Native Bridge ───────────────────────────────────
+  ffi: ^2.1.2
+
+  # ─── Kokoro TTS Package ──────────────────────────────────
+  kokoro_tts_flutter: ^0.2.0+1
+  flutter_onnxruntime: ^1.0.0
+
+  # ─── Audio & Background Playback ───────────────────────────
+  audio_service: ^0.18.15
+  just_audio: ^0.9.36
+
+  # ─── File System & Storage ─────────────────────────────────
+  path_provider: ^2.1.2
+  file_picker: ^8.0.0
+  shared_preferences: ^2.2.2
+
+  # ─── Device & Platform ─────────────────────────────────────
+  wakelock_plus: ^1.1.4
+  permission_handler: ^11.3.0
+  device_info_plus: ^9.1.2
+
+  # ─── State Management ──────────────────────────────────────
+  flutter_riverpod: ^2.5.1
+  riverpod_annotation: ^2.3.5
+
+  # ─── UI & Theming ──────────────────────────────────────────
+  google_fonts: ^6.2.1
+  flutter_colorpicker: ^1.0.3
+  flutter_animate: ^4.5.0
+  shimmer: ^3.0.0
+
+  # ─── Book Parsing ──────────────────────────────────────────
+  epub_plus: ^5.0.0
+  html_unescape: ^2.0.0
+
+  # ─── Utilities ─────────────────────────────────────────────
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+  path: ^1.9.0
+  collection: ^1.18.0
+  intl: ^0.19.0
+
+  # ─── Charts & Analytics ────────────────────────────────────
+  fl_chart: ^0.68.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.2
+  build_runner: ^2.4.8
+  freezed: ^2.4.7
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.4.0
+  custom_lint: ^0.6.4
+  riverpod_lint: ^2.3.10
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/models/
+    - assets/voices/
+    - assets/config/
+    - assets/fonts/
