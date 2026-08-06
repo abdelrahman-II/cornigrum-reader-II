@@ -76,3 +76,6 @@ flutter:
     - assets/voices/
     - assets/config/
     - assets/fonts/
+    
+dependency_overrides:
+  async: 2.11.0
