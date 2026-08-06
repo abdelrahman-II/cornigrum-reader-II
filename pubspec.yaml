@@ -20,7 +20,7 @@ dependencies:
 
   # ─── Audio & Background Playback ───────────────────────────
   audio_service: ^0.18.15
-  just_audio: ^0.9.36
+  just_audio: ^0.10.3
 
   # ─── File System & Storage ─────────────────────────────────
   path_provider: ^2.1.2
