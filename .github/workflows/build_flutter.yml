@@ -3,6 +3,9 @@ name: Build Flutter App (CorNigrum Reader - Kokoro ONNX)
 on:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,7 +27,7 @@ jobs:
           packages: 'ndk;26.1.10909125'
 
       - name: Set up Flutter SDK
-        uses: subosito/flutter-action@v2
+        uses: subosito/flutter-action@v4
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
@@ -41,7 +44,10 @@ jobs:
           ./scripts/download_assets.sh
 
       - name: Clean project
-        run: flutter clean
+        run: |
+          cd android && ./gradlew clean
+          cd ..
+          flutter clean
 
       - name: Install Dependencies
         run: |
@@ -75,7 +81,7 @@ jobs:
 
       # ─── Upload Directly as APK (GitHub Release) ────────
       - name: Create Nightly Release & Upload APK
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v4
         with:
           tag_name: nightly-build
           name: "CorNigrum Reader (Latest Build)"
