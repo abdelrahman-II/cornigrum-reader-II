@@ -52,11 +52,12 @@ class TtsService extends ChangeNotifier {
     }
 
     final primaryEsc = escapeCharSet(_primaryDelimiters);
+    final secondaryEsc = escapeCharSet(_secondaryDelimiters); // استخدام الثانوي
     RegExp regex;
     try {
-      regex = RegExp('([^$primaryEsc]+[$primaryEsc]+|[^$primaryEsc]+\$)');
+      regex = RegExp('([^$primaryEsc$secondaryEsc]+[$primaryEsc$secondaryEsc]+|[^$primaryEsc$secondaryEsc]+\$)');
     } catch (_) {
-      regex = RegExp(r'([^.!?\n]+[.!?\n]+|[^.!?\n]+$)');
+      regex = RegExp(r'([^.!?\n,;:—]+[.!?\n,;:—]+|[^.!?\n,;:—]+$)');
     }
 
     final matches = regex.allMatches(text);

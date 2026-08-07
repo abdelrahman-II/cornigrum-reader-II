@@ -192,7 +192,7 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
                 File(voice.embeddingPath).existsSync();
 
                 // final isSelected = settings.voicePath == voice.embeddingPath;
-                final isSelected = voice.id == settings.voiceName;
+                //final isSelected = voice.id == settings.voiceName;
 
             return RadioListTile<String>(
               title: Row(
@@ -217,9 +217,11 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
                   fontSize: 12,
                 ),
               ),
+              // ignore: deprecated_member_use
               value: voice.embeddingPath,
               groupValue: settings.voicePath,
               activeColor: settings.highlightColor,
+              // ignore: deprecated_member_use
               onChanged: exists
                   ? (val) async {
                       if (val != null) {

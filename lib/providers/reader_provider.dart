@@ -20,6 +20,8 @@ class ReaderState {
   final int queueCapacity;
   final double playbackSpeed;
   final String? errorMessage;
+  final int charStart;   
+  final int charEnd;     
 
   const ReaderState({
     this.currentBook,
@@ -32,6 +34,8 @@ class ReaderState {
     this.queueCapacity = 5,
     this.playbackSpeed = 1.0,
     this.errorMessage,
+    this.charStart = 0,   
+    this.charEnd = 0,     
   });
 
   ReaderState copyWith({
@@ -45,6 +49,9 @@ class ReaderState {
     int? queueCapacity,
     double? playbackSpeed,
     String? errorMessage,
+    int? charStart,      
+    int? charEnd,        
+    
   }) {
     return ReaderState(
       currentBook: currentBook ?? this.currentBook,
@@ -57,6 +64,8 @@ class ReaderState {
       queueCapacity: queueCapacity ?? this.queueCapacity,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       errorMessage: errorMessage,
+      charStart: charStart ?? this.charStart,  
+      charEnd: charEnd ?? this.charEnd,        
     );
   }
 }
@@ -138,11 +147,13 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         parsedSentences.length,
         (i) => Sentence(index: i, text: parsedSentences[i]),
       );
+      
+      final clampedIndex = sentences.isEmpty ? 0 : sentenceIndex.clamp(0, sentences.length - 1);
 
       state = state.copyWith(
         currentBook: book,
         currentChapterIndex: actualChapterIdx,
-        currentSentenceIndex: sentenceIndex.clamp(0, sentences.length - 1),
+        currentSentenceIndex: clampedIndex,
         sentences: sentences,
         charStart: 0, 
         charEnd: 0, 
@@ -241,7 +252,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
 
         if (status.currentSentence >= 0 &&
             status.currentSentence != state.currentSentenceIndex) {
-          seekToSentence(status.currentSentence);
+          await seekToSentence(status.currentSentence);
         }
 
         state = state.copyWith(
