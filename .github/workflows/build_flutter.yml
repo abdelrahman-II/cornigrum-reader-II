@@ -2,7 +2,7 @@ name: Build Flutter App (CorNigrum Reader - Kokoro ONNX)
 
 on:
   workflow_dispatch:
-
+  
 permissions:
   contents: write
 
@@ -27,7 +27,7 @@ jobs:
           packages: 'ndk;26.1.10909125'
 
       - name: Set up Flutter SDK
-        uses: subosito/flutter-action@v4
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.29.3'
           channel: 'stable'
@@ -81,7 +81,7 @@ jobs:
 
       # ─── Upload Directly as APK (GitHub Release) ────────
       - name: Create Nightly Release & Upload APK
-        uses: softprops/action-gh-release@v4
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: nightly-build
           name: "CorNigrum Reader (Latest Build)"
