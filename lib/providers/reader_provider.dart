@@ -144,6 +144,8 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         currentChapterIndex: actualChapterIdx,
         currentSentenceIndex: sentenceIndex.clamp(0, sentences.length - 1),
         sentences: sentences,
+        charStart: 0, 
+        charEnd: 0, 
         errorMessage: null,
       );
 

@@ -114,11 +114,13 @@ class CornigrumIsolateBridge {
     }
 
     final primaryEsc = escapeCharSet(_primaryDelimiters);
+    final secondaryEsc = escapeCharSet(_secondaryDelimiters);
+    
     RegExp regex;
     try {
-      regex = RegExp('([^$primaryEsc]+[$primaryEsc]+|[^$primaryEsc]+\$)');
+      regex = RegExp('([^$primaryEsc$secondaryEsc]+[$primaryEsc$secondaryEsc]+|[^$primaryEsc$secondaryEsc]+\$)');
     } catch (_) {
-      regex = RegExp(r'([^.!?\n]+[.!?\n]+|[^.!?\n]+$)');
+      regex = RegExp(r'([^.!?\n,;:—]+[.!?\n,;:—]+|[^.!?\n,;:—]+$)');
     }
 
     final matches = regex.allMatches(text);
@@ -244,13 +246,15 @@ class CornigrumIsolateBridge {
     _currentSentenceIndex = 0;
   }
 
-  Future<({bool isPlaying, int currentSentence, int queueSize, int queueCapacity, double speed})> getStatus() async {
+  Future<({bool isPlaying, int currentSentence, int queueSize, int queueCapacity, double speed, String modelPath, String voicePath})> getStatus() async {
     return (
       isPlaying: _isPlaying,
       currentSentence: _currentSentenceIndex,
       queueSize: _audioCache.length,
       queueCapacity: 10,
       speed: _playbackSpeed,
+      modelPath: _modelPath,
+      voicePath: _voicePath,
     );
   }
 
@@ -334,13 +338,19 @@ class CornigrumIsolateBridge {
   }
 
   List<int> _int16ToBytes(int value) {
-    final b = ByteData(2).setInt16(0, value, Endian.little);
+    final b = ByteData(2)..setInt16(0, value, Endian.little);
     return b.buffer.asUint8List();
   }
 
+
   Future<void> dispose() async {
-    _playerSubscription?.cancel();
-    _audioPlayer?.dispose();
+    if (_playerSubscription != null) {
+      await _playerSubscription!.cancel();
+    }
+    if (_audioPlayer != null) {
+      await _audioPlayer!.dispose();
+    }
     _initialized = false;
   }
+
 }

@@ -191,7 +191,8 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
             final exists = voice.embeddingPath.startsWith('assets/') ||
                 File(voice.embeddingPath).existsSync();
 
-            final isSelected = settings.voicePath == voice.embeddingPath;
+                // final isSelected = settings.voicePath == voice.embeddingPath;
+                final isSelected = voice.id == settings.voiceName;
 
             return RadioListTile<String>(
               title: Row(

@@ -11,8 +11,8 @@ class Sentence {
   const Sentence({
     required this.index,
     required this.text,
-    required this.charStart,
-    required this.charEnd,
+    this.charStart = 0,
+    this.charEnd = 0,
     this.isHighlighted = false,
     this.isSynthesized = false,
     this.audioBufferRef,
@@ -26,6 +26,8 @@ class Sentence {
     bool? isSynthesized,
     String? audioBufferRef,
     int? durationMs,
+    int? charStart,
+    int? charEnd,
   }) {
     return Sentence(
       index: index ?? this.index,
@@ -34,6 +36,8 @@ class Sentence {
       isSynthesized: isSynthesized ?? this.isSynthesized,
       audioBufferRef: audioBufferRef ?? this.audioBufferRef,
       durationMs: durationMs ?? this.durationMs,
+      charStart: charStart ?? this.charStart,
+      charEnd: charEnd ?? this.charEnd,
     );
   }
 
@@ -44,6 +48,8 @@ class Sentence {
         'isSynthesized': isSynthesized,
         'audioBufferRef': audioBufferRef,
         'durationMs': durationMs,
+        'charStart': charStart,
+        'charEnd': charEnd,
       };
 
   factory Sentence.fromJson(Map<String, dynamic> json) => Sentence(
@@ -53,5 +59,7 @@ class Sentence {
         isSynthesized: json['isSynthesized'] ?? false,
         audioBufferRef: json['audioBufferRef'],
         durationMs: json['durationMs'] ?? 0,
-      );
+        charStart: json['charStart'] ?? 0,
+        charEnd: json['charEnd'] ?? 0,
+    );
 }
