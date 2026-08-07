@@ -93,7 +93,7 @@ class ReaderScreen extends ConsumerWidget {
                 margin: const EdgeInsets.all(12),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade900.withOpacity(0.2),
+                  color: Colors.amber.shade900.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: Colors.amber.shade600),
                 ),

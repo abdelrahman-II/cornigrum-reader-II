@@ -23,7 +23,7 @@ class ControlBar extends ConsumerWidget {
         color: _getBackgroundColor(settings.theme),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
+            color: Colors.black.withValues(alpha: 0.2),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -126,7 +126,7 @@ class ControlBar extends ConsumerWidget {
                     Text(
                       '${readerState.queueSize}',
                       style: TextStyle(
-                        color: _getTextColor(settings.theme).withOpacity(0.7),
+                        color: _getTextColor(settings.theme).withValues(alpha: 0.7),
                         fontSize: 12,
                       ),
                     ),

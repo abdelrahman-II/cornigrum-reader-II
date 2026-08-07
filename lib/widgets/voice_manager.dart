@@ -172,7 +172,7 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
                   settings.voiceName,
                   style: const TextStyle(fontSize: 11),
                 ),
-                backgroundColor: Colors.green.withOpacity(0.1),
+                backgroundColor: Colors.green.withValues(alpha: 0.1),
               ),
           ],
         ),

@@ -15,6 +15,7 @@ class CornigrumIsolateBridge {
   Kokoro? _kokoro;
   Tokenizer? _tokenizer;
   AudioPlayer? _audioPlayer;
+  RtfCallback? onRtfUpdate;
 
   String _modelPath = '';
   String _voicePath = '';
@@ -41,7 +42,7 @@ class CornigrumIsolateBridge {
     bool isInt8 = false,
   }) async {
     _modelPath = modelPath;
-    _voicePath = voicePath;
+    //_voicePath = voicePath;
     _voiceName = voiceName;
 
     _audioPlayer ??= AudioPlayer();
@@ -151,6 +152,9 @@ class CornigrumIsolateBridge {
     if (sentenceIndex < 0 || sentenceIndex >= _sentences.length) return;
     _playbackSpeed = speed;
 
+    final stopwatch = Stopwatch()..start();
+    
+
     if (_audioCache.containsKey(sentenceIndex)) return;
 
     final text = _sentences[sentenceIndex];
@@ -176,6 +180,18 @@ class CornigrumIsolateBridge {
         debugPrint('Synthesis exception for index $sentenceIndex: $e');
       }
     }
+
+    stopwatch.stop();
+    final inferenceMs = stopwatch.elapsedMilliseconds;
+    
+    // احسب مدة الصوت من طول العينات (نفترض 24000 عينة/ثانية)
+    final audioDurationSec = ttsResult.audio.length / 24000.0;
+    final rtf = (inferenceMs / 1000) / audioDurationSec;
+    if (onRtfUpdate != null) {
+      onRtfUpdate!(rtf, inferenceMs);
+    }
+
+
   }
 
   Future<void> prefetch(int startIndex, int count, double speed) async {

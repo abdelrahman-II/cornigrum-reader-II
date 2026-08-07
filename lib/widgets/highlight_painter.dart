@@ -12,7 +12,7 @@ class HighlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color.withOpacity(0.25)
+      ..color = color.withValues(alpha: 0.25)
       ..style = PaintingStyle.fill;
 
     final RRect rrect = RRect.fromRectAndRadius(

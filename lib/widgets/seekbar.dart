@@ -25,7 +25,7 @@ class Seekbar extends ConsumerWidget {
           min: 0.0,
           max: (total - 1).toDouble(),
           activeColor: settings.highlightColor,
-          inactiveColor: settings.highlightColor.withOpacity(0.3),
+          inactiveColor: settings.highlightColor.withValues(alpha: 0.3),
           onChanged: (val) {
             readerNotifier.seekToSentence(val.toInt());
           },

@@ -94,7 +94,7 @@ class SettingsModel {
 
   Map<String, dynamic> toJson() => {
         'theme': theme.index,
-        'highlightColor': highlightColor.value,
+        'highlightColor': highlightColor.toARGB32(),
         'fontSize': fontSize,
         'lineSpacing': lineSpacing,
         'sideMargin': sideMargin,

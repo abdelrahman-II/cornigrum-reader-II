@@ -9,6 +9,8 @@ import 'isolate_bridge_provider.dart';
 import 'library_provider.dart';
 import 'settings_provider.dart';
 
+import 'analytics_provider.dart';
+
 class ReaderState {
   final Book? currentBook;
   final int currentChapterIndex;
@@ -115,7 +117,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     try {
       await _bridge.initialize(
         modelPath: settings.modelPath,
-        voicePath: settings.voicePath,
+        //voicePath: settings.voicePath,
         voiceName: settings.voiceName,
         configPath: 'assets/config/config.json',
         vocabPath: 'assets/config/vocab.json',
@@ -133,6 +135,14 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         errorMessage: 'Engine initialization failed: $e',
       );
     }
+
+    //غير مأكدة بعد
+    _bridge.onRtfUpdate = (rtf, latencyMs) {
+      _ref.read(analyticsProvider.notifier).recordSynthesisMetric(
+          rtf: rtf,
+          latencyMs: latencyMs.toDouble(),
+        );
+    };
   }
 
   void loadBook(Book book, {int chapterIndex = 0, int sentenceIndex = 0}) async {

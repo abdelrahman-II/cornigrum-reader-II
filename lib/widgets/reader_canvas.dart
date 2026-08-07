@@ -59,7 +59,7 @@ class _ReaderCanvasState extends ConsumerState<ReaderCanvas> {
       return Center(
         child: Text(
           'No book loaded or chapter empty.',
-          style: TextStyle(color: _getTextColor(settings.theme).withOpacity(0.5)),
+          style: TextStyle(color: _getTextColor(settings.theme).withValues(alpha: 0.5)),
         ),
       );
     }
@@ -86,7 +86,7 @@ class _ReaderCanvasState extends ConsumerState<ReaderCanvas> {
                   padding: const EdgeInsets.all(16),
                   decoration: isCurrent
                       ? BoxDecoration(
-                          color: settings.highlightColor.withOpacity(0.2),
+                          color: settings.highlightColor.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: settings.highlightColor),
                         )
@@ -137,7 +137,7 @@ class _ReaderCanvasState extends ConsumerState<ReaderCanvas> {
                 borderRadius: BorderRadius.circular(6),
                 border: isCurrent
                     ? Border.all(
-                        color: settings.highlightColor.withOpacity(0.5),
+                        color: settings.highlightColor.withValues(alpha: 0.2),
                       )
                     : null,
               ),
