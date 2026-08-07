@@ -148,7 +148,7 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
             color: hasModel ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: hasModel ? Colors.green.withValues(alpha: 0.1) : Colors.orange.withValues(alpha: 0.1),
+              color: hasModel ? Colors.green.shade400 : Colors.orange.shade400,
           ),
           child: Row(
             children: [

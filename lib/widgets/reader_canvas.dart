@@ -132,7 +132,7 @@ class _ReaderCanvasState extends ConsumerState<ReaderCanvas> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: isCurrent
-                    ? settings.highlightColor.withOpacity(0.2)
+                    ? settings.highlightColor.withValues(alpha: 0.2)
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
                 border: isCurrent

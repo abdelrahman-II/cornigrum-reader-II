@@ -8,6 +8,8 @@ import 'package:kokoro_tts_flutter/kokoro_tts_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+typedef RtfCallback = void Function(double rtf, int latencyMs);
+
 class CornigrumIsolateBridge {
   bool _initialized = false;
   bool get isInitialized => _initialized;
@@ -152,7 +154,7 @@ class CornigrumIsolateBridge {
     if (sentenceIndex < 0 || sentenceIndex >= _sentences.length) return;
     _playbackSpeed = speed;
 
-    final stopwatch = Stopwatch()..start();
+    
     
 
     if (_audioCache.containsKey(sentenceIndex)) return;
@@ -160,12 +162,23 @@ class CornigrumIsolateBridge {
     final text = _sentences[sentenceIndex];
     if (_kokoro != null && _tokenizer != null) {
       try {
+
+        final stopwatch = Stopwatch()..start();
         final phonemes = await _tokenizer!.phonemize(text, lang: 'en-us');
         final ttsResult = await _kokoro!.createTTS(
           text: phonemes,
           voice: _voiceName.isEmpty ? 'af_heart' : _voiceName,
           isPhonemes: true,
         );
+
+        stopwatch.stop();
+        final inferenceMs = stopwatch.elapsedMilliseconds;
+        // احسب مدة الصوت من طول العينات (نفترض 24000 عينة/ثانية)
+        final audioDurationSec = ttsResult.audio.length / 24000.0;
+        final rtf = (inferenceMs / 1000) / audioDurationSec;
+        if (onRtfUpdate != null) {
+          onRtfUpdate!(rtf, inferenceMs);
+        }
 
         if (ttsResult != null && ttsResult.audio != null) {
           final tempDir = await getTemporaryDirectory();
@@ -180,18 +193,6 @@ class CornigrumIsolateBridge {
         debugPrint('Synthesis exception for index $sentenceIndex: $e');
       }
     }
-
-    stopwatch.stop();
-    final inferenceMs = stopwatch.elapsedMilliseconds;
-    
-    // احسب مدة الصوت من طول العينات (نفترض 24000 عينة/ثانية)
-    final audioDurationSec = ttsResult.audio.length / 24000.0;
-    final rtf = (inferenceMs / 1000) / audioDurationSec;
-    if (onRtfUpdate != null) {
-      onRtfUpdate!(rtf, inferenceMs);
-    }
-
-
   }
 
   Future<void> prefetch(int startIndex, int count, double speed) async {

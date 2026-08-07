@@ -117,7 +117,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     try {
       await _bridge.initialize(
         modelPath: settings.modelPath,
-        //voicePath: settings.voicePath,
+        voicePath: settings.voicePath,
         voiceName: settings.voiceName,
         configPath: 'assets/config/config.json',
         vocabPath: 'assets/config/vocab.json',
@@ -127,6 +127,14 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         settings.primaryDelimiters,
         settings.secondaryDelimiters,
       );
+
+      _bridge.onRtfUpdate = (rtf, latencyMs) {
+        _ref.read(analyticsProvider.notifier).recordSynthesisMetric(
+          rtf: rtf,
+          latencyMs: latencyMs.toDouble(),
+        );
+      };
+      
       state = state.copyWith(isEngineReady: true, errorMessage: null);
       _startStatusPolling();
     } catch (e) {
