@@ -145,10 +145,13 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: hasModel ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+            color: hasModel 
+                ? Colors.green.withValues(alpha: 0.1) 
+                : Colors.orange.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasModel ? Colors.green.shade400 : Colors.orange.shade400,
+            ),
           ),
           child: Row(
             children: [
@@ -179,35 +182,34 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
               ),
             ],
           ),
-          ),
-          const SizedBox(height: 12),
-          SwitchListTile(
-            title: const Text('Int8 Quantized Model'),
-            subtitle: const Text('Enable int8 model flag for faster performance & low memory'),
-            value: settings.isQuantizedInt8 || modelPath.toLowerCase().contains('int8'),
-            onChanged: (val) async {
-              await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(val);
-              ref.read(readerProvider.notifier).initEngine();
-            },
-            contentPadding: EdgeInsets.zero,
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              icon: _isImporting
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.upload_file_rounded),
-              label: Text(_isImporting ? 'Importing Model...' : 'Import .onnx Model File'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: _isImporting ? null : _pickAndImportModel,
+        ),
+        const SizedBox(height: 12),
+        SwitchListTile(
+          title: const Text('Int8 Quantized Model'),
+          subtitle: const Text('Enable int8 model flag for faster performance & low memory'),
+          value: settings.isQuantizedInt8 || modelPath.toLowerCase().contains('int8'),
+          onChanged: (val) async {
+            await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(val);
+            ref.read(readerProvider.notifier).initEngine();
+          },
+          contentPadding: EdgeInsets.zero,
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _isImporting ? null : _pickAndImportModel,
+            style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 12),
             ),
+            icon: _isImporting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.upload_file_rounded),
+            label: Text(_isImporting ? 'Importing Model...' : 'Import .onnx Model File'),
           ),
         ),
       ],
