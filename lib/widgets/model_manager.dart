@@ -179,37 +179,38 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
-        SwitchListTile(
-          title: const Text('Int8 Quantized Model'),
-          subtitle: const Text('Enable int8 model flag for faster performance & low memory'),
-          value: settings.isQuantizedInt8 || modelPath.toLowerCase().contains('int8'),
-          onChanged: (val) async {
-            await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(val);
-            ref.read(readerProvider.notifier).initEngine();
-          },
-          contentPadding: EdgeInsets.zero,
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            icon: _isImporting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.upload_file_rounded),
-            label: Text(_isImporting ? 'Importing Model...' : 'Import .onnx Model File'),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            title: const Text('Int8 Quantized Model'),
+            subtitle: const Text('Enable int8 model flag for faster performance & low memory'),
+            value: settings.isQuantizedInt8 || modelPath.toLowerCase().contains('int8'),
+            onChanged: (val) async {
+              await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(val);
+              ref.read(readerProvider.notifier).initEngine();
+            },
+            contentPadding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              icon: _isImporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.upload_file_rounded),
+              label: Text(_isImporting ? 'Importing Model...' : 'Import .onnx Model File'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: _isImporting ? null : _pickAndImportModel,
             ),
-            onPressed: _isImporting ? null : _pickAndImportModel,
           ),
         ),
-      ),
+      ],
     );
   }
 }
