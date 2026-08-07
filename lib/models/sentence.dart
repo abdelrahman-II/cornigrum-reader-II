@@ -5,10 +5,14 @@ class Sentence {
   final bool isSynthesized;
   final String? audioBufferRef;
   final int durationMs;
+  final int charStart;
+  final int charEnd;
 
   const Sentence({
     required this.index,
     required this.text,
+    required this.charStart,
+    required this.charEnd,
     this.isHighlighted = false,
     this.isSynthesized = false,
     this.audioBufferRef,

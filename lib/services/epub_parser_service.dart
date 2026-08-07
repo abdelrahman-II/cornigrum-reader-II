@@ -60,7 +60,7 @@ class EpubParserService {
       id: 'imported_${DateTime.now().millisecondsSinceEpoch}',
       title: cleanTitle,
       author: 'Imported Document',
-      addedAt: DateTime.now().toIso8601String(),
+      addedAt: DateTime.now(),
       chapters: chapters,
     );
   }

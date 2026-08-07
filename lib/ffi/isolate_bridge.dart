@@ -340,7 +340,7 @@ class CornigrumIsolateBridge {
 
   Future<void> dispose() async {
     _playerSubscription?.cancel();
-    await _audioPlayer?.dispose();
+    _audioPlayer?.dispose();
     _initialized = false;
   }
 }
