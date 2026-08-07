@@ -24,7 +24,7 @@ if (flutterVersionName == null) {
 
 android {
     namespace "com.cornigrum.reader"
-    compileSdk 35
+    compileSdk 34
     ndkVersion "25.2.9519653"
 
     compileOptions {
@@ -44,7 +44,7 @@ android {
     defaultConfig {
         applicationId "com.cornigrum.reader"
         minSdk 24
-        targetSdk 35
+        targetSdk 34
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
 
