@@ -209,7 +209,7 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
             onPressed: _isImporting ? null : _pickAndImportModel,
           ),
         ),
-      ],
+      ),
     );
   }
 }
