@@ -45,8 +45,6 @@ jobs:
 
       - name: Clean project
         run: |
-          cd android && ./gradlew clean
-          cd ..
           flutter clean
 
       - name: Install Dependencies
