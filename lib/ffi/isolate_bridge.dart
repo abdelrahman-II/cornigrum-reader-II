@@ -22,6 +22,8 @@ class CornigrumIsolateBridge {
   String _modelPath = '';
   String _voicePath = '';
   String _voiceName = '';
+  String _voiceId = '';
+
   String _primaryDelimiters = '.!?\n';
   String _secondaryDelimiters = ',;:—';
 
@@ -43,16 +45,16 @@ class CornigrumIsolateBridge {
     required String vocabPath,
     bool isInt8 = false,
   }) async {
+    debugPrint('[Bridge] Initializing Kokoro TTS Engine...');
     _modelPath = modelPath;
-    //_voicePath = voicePath;
     _voiceName = voiceName;
 
     _audioPlayer ??= AudioPlayer();
 
-    // Listen to audio player state changes to advance sentences automatically
     _playerSubscription?.cancel();
     _playerSubscription = _audioPlayer!.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
+        debugPrint('[Bridge] Audio completed for sentence index $_currentSentenceIndex');
         _onSentenceAudioCompleted();
       }
     });
@@ -60,6 +62,21 @@ class CornigrumIsolateBridge {
     try {
       final effectiveIsInt8 = isInt8 || modelPath.toLowerCase().contains('int8');
       final effectiveVoicePath = await _ensureVoicePath(voicePath);
+
+      final voicesDir = p.dirname(effectiveVoicePath);
+      _voiceId = p.basenameWithoutExtension(effectiveVoicePath);
+
+      debugPrint('[Bridge] Model path: $modelPath');
+      debugPrint('[Bridge] Voices dir: $voicesDir, Voice ID: $_voiceId');
+
+
+      /// دالة تحويل النص إلى صوت (TTS) باستخدام مكتبة Kokoro
+      /// 
+      /// الاستخدام الأساسي:
+      /// 1. إعداد مسارات النماذج (ملف نموذج ONNX وملف أصوات JSON) المضافة في مجلد assets.
+      /// 2. تهيئة محرك Kokoro ومحرك التحليل الصوتي (Tokenizer).
+      /// 3. تحويل النص إلى أصوات كلامية (Phonemes).
+      /// 4. توليد العينات الصوتية (Audio Samples) بناءً على الصوت المختار.
 
       final config = KokoroConfig(
         modelPath: modelPath,
@@ -74,10 +91,10 @@ class CornigrumIsolateBridge {
       await _tokenizer!.ensureInitialized();
 
       _initialized = true;
+      debugPrint('[Bridge] Kokoro TTS Engine successfully initialized.');
     } catch (e) {
-      debugPrint('Kokoro TTS initialization notice: $e');
-      // Set initialized to true so mock/fallback playback mode works if model is omitted
-      _initialized = true;
+      debugPrint('[Bridge] Initialization failed with error: $e');
+      rethrow;
     }
   }
 
@@ -89,113 +106,164 @@ class CornigrumIsolateBridge {
     if (originalPath.endsWith('.bin')) {
       final jsonPath = p.setExtension(originalPath, '.json');
       if (File(jsonPath).existsSync()) {
-        return jsonPath;
+        return jsonPath; 
       }
-      try {
-        final content = await file.readAsString();
-        if (content.trim().startsWith('{') || content.trim().startsWith('[')) {
-          final jsonFile = File(jsonPath);
-          await jsonFile.writeAsString(content);
-          return jsonFile.path;
-        }
-      } catch (_) {}
+
     }
     return originalPath;
   }
 
   Future<List<String>> parseText(String text) async {
+    debugPrint('[Bridge] Parsing text into sentences...');
     if (text.trim().isEmpty) {
       _sentences = [];
+      _audioCache.clear();
+      _currentSentenceIndex = 0;
       return [];
     }
 
-    String escapeCharSet(String input) {
-      return input.split('').map((c) {
-        if (RegExp(r'[a-zA-Z0-9]').hasMatch(c)) return c;
-        return '\\$c';
-      }).join('');
+    // بناء أنماط المقسمات الأساسية والثانوية
+    String primaryPattern = '';
+    for (var ch in _primaryDelimiters.runes) {
+      final char = String.fromCharCode(ch);
+      primaryPattern += (char == '\n') ? r'\n' : RegExp.escape(char);
     }
 
-    final primaryEsc = escapeCharSet(_primaryDelimiters);
-    final secondaryEsc = escapeCharSet(_secondaryDelimiters);
-    
-    RegExp regex;
-    try {
-      regex = RegExp('([^$primaryEsc$secondaryEsc]+[$primaryEsc$secondaryEsc]+|[^$primaryEsc$secondaryEsc]+\$)');
-    } catch (_) {
-      regex = RegExp(r'([^.!?\n,;:—]+[.!?\n,;:—]+|[^.!?\n,;:—]+$)');
+    String secondaryPattern = '';
+    for (var ch in _secondaryDelimiters.runes) {
+      final char = String.fromCharCode(ch);
+      secondaryPattern += (char == '\n') ? r'\n' : RegExp.escape(char);
     }
 
-    final matches = regex.allMatches(text);
-    final List<String> list = [];
-    for (final match in matches) {
-      final chunk = match.group(0) ?? '';
-      if (chunk.trim().isNotEmpty) {
-        list.add(chunk.trim());
+    // دالة مساعدة للتقسيم التكراري بالترتيب (الأساسي ثم الثانوي ثم التقسيم اليدوي عند الحاجة)
+    List<String> splitRecursively(String content, int level) {
+      final trimmedContent = content.trim();
+      if (trimmedContent.isEmpty) return [];
+      if (trimmedContent.length <= 400) return [trimmedContent];
+
+      String currentPattern = '';
+      if (level == 0 && primaryPattern.isNotEmpty) {
+        currentPattern = primaryPattern;
+      } else if (secondaryPattern.isNotEmpty) {
+        currentPattern = secondaryPattern;
       }
+
+      // إذا لم تعد هناك مقسمات متاحة وطول النص أكبر من 400، نقسمه بالقوة لت,قيق الشرط
+      if (currentPattern.isEmpty) {
+        List<String> forcedChunks = [];
+        for (int i = 0; i < content.length; i += 400) {
+          int end = (i + 400 < content.length) ? i + 400 : content.length;
+          final chunk = content.substring(i, end).trim();
+          if (chunk.isNotEmpty) forcedChunks.add(chunk);
+        }
+        return forcedChunks;
+      }
+
+      final regex = RegExp('([^$currentPattern]+[$currentPattern]+|[^$currentPattern]+$)');
+      final matches = regex.allMatches(content);
+      
+      List<String> result = [];
+      for (final match in matches) {
+        final chunk = match.group(0) ?? '';
+        if (chunk.trim().isNotEmpty) {
+          if (chunk.length <= 400) {
+            result.add(chunk.trim());
+          } else {
+            // إذا كان الناتج أكبر من 400، نعيد تمريره للمستوى التالي من التقسيم
+            result.addAll(splitRecursively(chunk, level + 1));
+          }
+        }
+      }
+      
+      // احتياط: إذا فشلت التعابير النمطية في التقسيم وبقي النص كقطعة واحدة أكبر من 400
+      if (result.length == 1 && result[0].length > 400) {
+        return splitRecursively(content, level + 1);
+      }
+
+      return result;
     }
 
+    // البدء بتطبيق التقسيم من المستوى الأول (المقسم الأساسي)
+    final List<String> list = splitRecursively(text, 0);
+
+    // تحديث المتغيرات الخاصة بالحال (كما في الكود الأصلي)
     _sentences = list;
     _audioCache.clear();
     _currentSentenceIndex = 0;
+
     return list;
   }
 
   Future<void> setDelimiters(String primary, String secondary) async {
     _primaryDelimiters = primary.isEmpty ? '.!?\n' : primary;
     _secondaryDelimiters = secondary.isEmpty ? ',;:—' : secondary;
+    debugPrint('[Bridge] Delimiters updated: primary=" $primary ", secondary=" $secondary "');
   }
 
   Future<void> setBatchMode(int mode, int batchSize) async {
     _batchSize = batchSize.clamp(1, 10);
+    debugPrint('[Bridge] Batch size set to: $_batchSize');
   }
 
   Future<void> synthesizeAndEnqueue(int sentenceIndex, double speed) async {
     if (sentenceIndex < 0 || sentenceIndex >= _sentences.length) return;
     _playbackSpeed = speed;
 
-    
-    
-
-    if (_audioCache.containsKey(sentenceIndex)) return;
+    if (_audioCache.containsKey(sentenceIndex)) {
+      debugPrint('[Bridge] Cache hit for sentence index $sentenceIndex');
+      return;
+    }
 
     final text = _sentences[sentenceIndex];
     if (_kokoro != null && _tokenizer != null) {
       try {
-
+        debugPrint('[Bridge] Synthesizing sentence index $sentenceIndex: "$text"');
         final stopwatch = Stopwatch()..start();
         final phonemes = await _tokenizer!.phonemize(text, lang: 'en-us');
+        
+        final voiceToUse = _voiceId.isEmpty ? (_voiceName.isEmpty ? 'af_heart' : _voiceName) : _voiceId;
         final ttsResult = await _kokoro!.createTTS(
           text: phonemes,
-          voice: _voiceName.isEmpty ? 'af_heart' : _voiceName,
+          voice: voiceToUse,
           isPhonemes: true,
         );
 
         stopwatch.stop();
         final inferenceMs = stopwatch.elapsedMilliseconds;
-        // احسب مدة الصوت من طول العينات (نفترض 24000 عينة/ثانية)
-        final audioDurationSec = ttsResult.audio.length / 24000.0;
-        final rtf = (inferenceMs / 1000) / audioDurationSec;
-        if (onRtfUpdate != null) {
-          onRtfUpdate!(rtf, inferenceMs);
-        }
 
         if (ttsResult != null && ttsResult.audio != null) {
+          final audioList = ttsResult.audio;
+          final audioDurationSec = audioList.length / 24000.0;
+          final rtf = (inferenceMs / 1000) / (audioDurationSec > 0 ? audioDurationSec : 1.0);
+
+          debugPrint('[Bridge] Synthesized sentence $sentenceIndex in ${inferenceMs}ms (RTF: ${rtf.toStringAsFixed(2)})');
+
+          if (onRtfUpdate != null) {
+            onRtfUpdate!(rtf, inferenceMs);
+          }
+
           final tempDir = await getTemporaryDirectory();
           final wavPath = p.join(tempDir.path, 'sentence_$sentenceIndex.wav');
           
-          final wavBytes = _convertToWavBytes(ttsResult.audio);
+          final wavBytes = _convertToWavBytes(audioList);
           final file = File(wavPath);
           await file.writeAsBytes(wavBytes);
           _audioCache[sentenceIndex] = wavPath;
+          debugPrint('[Bridge] Sentence $sentenceIndex audio saved to $wavPath');
+        } else {
+          debugPrint('[Bridge] Synthesis returned null audio for sentence index $sentenceIndex');
         }
+
       } catch (e) {
-        debugPrint('Synthesis exception for index $sentenceIndex: $e');
+        debugPrint('[Bridge] Synthesis error on index $sentenceIndex: $e');
       }
+    } else {
+      debugPrint('[Bridge] Cannot synthesize index $sentenceIndex: Kokoro or Tokenizer is null');
     }
   }
 
   Future<void> prefetch(int startIndex, int count, double speed) async {
+    debugPrint('[Bridge] Prefetching $count sentences starting from index $startIndex...');
     for (int i = 0; i < count; i++) {
       final idx = startIndex + i;
       if (idx < _sentences.length) {
@@ -205,18 +273,21 @@ class CornigrumIsolateBridge {
   }
 
   Future<void> play() async {
+    debugPrint('[Bridge] Requested play()');
     if (_sentences.isEmpty) return;
     _isPlaying = true;
     await _playCurrentSentence();
   }
 
+
   Future<void> _playCurrentSentence() async {
     if (_currentSentenceIndex < 0 || _currentSentenceIndex >= _sentences.length) {
+      debugPrint('[Bridge] Reached end of sentences range.');
       _isPlaying = false;
       return;
     }
 
-    // Prefetch upcoming sentences in queue
+    debugPrint('[Bridge] Playing sentence index $_currentSentenceIndex');
     prefetch(_currentSentenceIndex, _batchSize, _playbackSpeed);
 
     final cachedWav = _audioCache[_currentSentenceIndex];
@@ -227,19 +298,29 @@ class CornigrumIsolateBridge {
         await _audioPlayer!.play();
         return;
       } catch (e) {
-        debugPrint('Audio play failed: $e');
+        debugPrint('[Bridge] Failed playing audio file: $e');
       }
     }
 
-    // Fallback timer simulation if audio file not generated or on web
-    final sentence = _sentences[_currentSentenceIndex];
-    final durationSec = max(1.5, (sentence.length * 0.05) / _playbackSpeed);
-    
-    Future.delayed(Duration(milliseconds: (durationSec * 1000).round()), () {
-      if (_isPlaying) {
+    // محاولة توليف الجملة مباشرة بدلاً من المؤقت الاحتياطي
+    debugPrint('[Bridge] Audio not available for index $_currentSentenceIndex, attempting synthesis...');
+    try {
+      await synthesizeAndEnqueue(_currentSentenceIndex, _playbackSpeed);
+      final newCached = _audioCache[_currentSentenceIndex];
+      if (newCached != null && File(newCached).existsSync()) {
+        await _audioPlayer!.setFilePath(newCached);
+        await _audioPlayer!.setSpeed(_playbackSpeed);
+        await _audioPlayer!.play();
+        return;
+      } else {
+        // إذا فشل التوليف حتى بعد المحاولة، نمر إلى الجملة التالية
+        debugPrint('[Bridge] Synthesis failed for index $_currentSentenceIndex, skipping.');
         _onSentenceAudioCompleted();
       }
-    });
+    } catch (e) {
+      debugPrint('[Bridge] Synthesis error on current sentence: $e');
+      _onSentenceAudioCompleted();
+    }
   }
 
   void _onSentenceAudioCompleted() {
@@ -248,16 +329,19 @@ class CornigrumIsolateBridge {
       _currentSentenceIndex++;
       _playCurrentSentence();
     } else {
+      debugPrint('[Bridge] Playback reached end of document.');
       _isPlaying = false;
     }
   }
 
   Future<void> pause() async {
+    debugPrint('[Bridge] Requested pause()');
     _isPlaying = false;
     await _audioPlayer?.pause();
   }
 
   Future<void> stop() async {
+    debugPrint('[Bridge] Requested stop()');
     _isPlaying = false;
     await _audioPlayer?.stop();
     _currentSentenceIndex = 0;
@@ -276,6 +360,7 @@ class CornigrumIsolateBridge {
   }
 
   Future<void> setSpeed(double speed) async {
+    debugPrint('[Bridge] Setting playback speed to $speed');
     _playbackSpeed = speed;
     await _audioPlayer?.setSpeed(speed);
   }
@@ -288,9 +373,10 @@ class CornigrumIsolateBridge {
     final text = _sentences[sentenceIndex];
     if (_kokoro != null && _tokenizer != null) {
       final phonemes = await _tokenizer!.phonemize(text, lang: 'en-us');
+      final voiceToUse = _voiceId.isEmpty ? (_voiceName.isEmpty ? 'af_heart' : _voiceName) : _voiceId;
       final ttsResult = await _kokoro!.createTTS(
         text: phonemes,
-        voice: _voiceName.isEmpty ? 'af_heart' : _voiceName,
+        voice: voiceToUse,
         isPhonemes: true,
       );
 
@@ -344,7 +430,9 @@ class CornigrumIsolateBridge {
 
     builder.add([0x64, 0x61, 0x74, 0x61]); // "data"
     builder.add(_int32ToBytes(dataSize));
-    builder.add(pcm16.buffer.asUint8List());
+    // تحويل Int16List إلى Uint8List بشكل آمن
+    final byteData = pcm16.buffer.asByteData();
+    builder.add(byteData.buffer.asUint8List());
 
     return builder.toBytes();
   }
@@ -359,8 +447,8 @@ class CornigrumIsolateBridge {
     return b.buffer.asUint8List();
   }
 
-
   Future<void> dispose() async {
+    debugPrint('[Bridge] Disposing bridge resources...');
     if (_playerSubscription != null) {
       await _playerSubscription!.cancel();
     }
@@ -369,5 +457,4 @@ class CornigrumIsolateBridge {
     }
     _initialized = false;
   }
-
 }

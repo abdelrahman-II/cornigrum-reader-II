@@ -43,6 +43,24 @@ jobs:
           chmod +x scripts/download_assets.sh
           ./scripts/download_assets.sh
 
+      # ─── Setup Python & Process Voices Bin ───────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Python Dependencies
+        run: |
+          pip install numpy
+
+      - name: Convert Voices BIN to JSON
+        run: |
+          python scripts/convert_voices.py
+
+      - name: Clean project
+        run: |
+          flutter clean
+
       - name: Clean project
         run: |
           flutter clean
@@ -73,7 +91,7 @@ jobs:
       # ─── Build Release APK ──────────────────────────────
       - name: Build release APK
         run: |
-          flutter build apk --release \
+          flutter build apk --release --split-per-abi \
             --dart-define=FLUTTER_BUILD_NAME=1.0.0 \
             --dart-define=FLUTTER_BUILD_NUMBER=1
 
@@ -91,13 +109,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-
-      # - name: Build Android APK (Release)
-      #   run: |
-      #     flutter build apk --release --no-tree-shake-icons
-
-      # - name: Upload Release APK
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: cornigrum-reader-apk
-      #     path: build/app/outputs/flutter-apk/app-release.apk

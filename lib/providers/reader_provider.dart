@@ -53,7 +53,6 @@ class ReaderState {
     String? errorMessage,
     int? charStart,      
     int? charEnd,        
-    
   }) {
     return ReaderState(
       currentBook: currentBook ?? this.currentBook,
@@ -76,6 +75,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
   final CornigrumIsolateBridge _bridge;
   final Ref _ref;
   Timer? _statusPollTimer;
+  int _lastPrefetchedIndex = -1;
 
   ReaderNotifier(this._bridge, this._ref) : super(const ReaderState());
 
@@ -123,6 +123,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         vocabPath: 'assets/config/vocab.json',
         isInt8: settings.isQuantizedInt8,
       );
+
       await _bridge.setDelimiters(
         settings.primaryDelimiters,
         settings.secondaryDelimiters,
@@ -143,14 +144,6 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         errorMessage: 'Engine initialization failed: $e',
       );
     }
-
-    //غير مأكدة بعد
-    _bridge.onRtfUpdate = (rtf, latencyMs) {
-      _ref.read(analyticsProvider.notifier).recordSynthesisMetric(
-          rtf: rtf,
-          latencyMs: latencyMs.toDouble(),
-        );
-    };
   }
 
   void loadBook(Book book, {int chapterIndex = 0, int sentenceIndex = 0}) async {
@@ -160,6 +153,13 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     final chapter = book.chapters[actualChapterIdx];
 
     try {
+      // تحديث الفواصل بناءً على الإعدادات الحالية قبل القيام بتفكيك وتحليل النص
+      final settings = _ref.read(settingsProvider);
+      await _bridge.setDelimiters(
+        settings.primaryDelimiters,
+        settings.secondaryDelimiters,
+      );
+
       final parsedSentences = await _bridge.parseText(chapter.content);
       final sentences = List.generate(
         parsedSentences.length,
@@ -270,7 +270,20 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
 
         if (status.currentSentence >= 0 &&
             status.currentSentence != state.currentSentenceIndex) {
-          await seekToSentence(status.currentSentence);
+          state = state.copyWith(currentSentenceIndex: status.currentSentence);
+
+          _lastPrefetchedIndex = status.currentSentence - 1;
+
+          if (state.currentBook != null) {
+            _ref.read(libraryProvider.notifier).updateBookProgress(
+                  bookId: state.currentBook!.id,
+                  chapterIndex: state.currentChapterIndex,
+                  sentenceIndex: status.currentSentence,
+                  progressPercent: state.sentences.isEmpty
+                      ? 0.0
+                      : status.currentSentence / state.sentences.length,
+                );
+          }
         }
 
         state = state.copyWith(
@@ -280,9 +293,10 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         );
 
         if (status.isPlaying && status.queueSize < status.queueCapacity - 1) {
-          final nextIdx = state.currentSentenceIndex + status.queueSize + 1;
-          if (nextIdx < state.sentences.length) {
-            await _bridge.synthesizeAndEnqueue(nextIdx, state.playbackSpeed);
+          int nextIndex = state.currentSentenceIndex + status.queueSize + 1;
+          if (nextIndex > _lastPrefetchedIndex && nextIndex < state.sentences.length) {
+            _lastPrefetchedIndex = nextIndex;
+            await _bridge.synthesizeAndEnqueue(nextIndex, state.playbackSpeed);
           }
         }
       } catch (_) {}

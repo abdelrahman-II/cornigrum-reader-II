@@ -119,11 +119,16 @@ class BookParser {
   }
 
   static String _cleanHtml(String html) {
+    // إزالة style و script
     var cleaned = html.replaceAll(RegExp(r'<style[^>]*>[\s\S]*?</style>', caseSensitive: false), '');
     cleaned = cleaned.replaceAll(RegExp(r'<script[^>]*>[\s\S]*?</script>', caseSensitive: false), '');
+    // إزالة جميع الوسوم بشكل متكرر للتخلص من الوسوم المتداخلة
     cleaned = cleaned.replaceAll(RegExp(r'<[^>]+>'), ' ');
+    // فك تشفير الكيانات
     cleaned = _htmlUnescape.convert(cleaned);
+    // توحيد المسافات
     cleaned = cleaned.replaceAll(RegExp(r'[ \t]+'), ' ');
+    // توحيد الأسطر الفارغة
     cleaned = cleaned.replaceAll(RegExp(r'\n\s*\n'), '\n\n');
     return cleaned.trim();
   }

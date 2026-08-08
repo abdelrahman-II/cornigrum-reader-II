@@ -21,7 +21,13 @@ class CornigrumApp extends ConsumerWidget {
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.light,
-        colorSchemeSeed: settings.highlightColor,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: settings.highlightColor,
+          brightness: Brightness.light,
+        ).copyWith(
+          primary: settings.highlightColor,
+          secondary: settings.highlightColor,
+        ),
         textTheme: GoogleFonts.interTextTheme(ThemeData.light().textTheme),
       ),
 
@@ -31,7 +37,13 @@ class CornigrumApp extends ConsumerWidget {
         scaffoldBackgroundColor: settings.theme == AppTheme.pitchBlack
             ? Colors.black
             : const Color(0xFF09090B),
-        colorSchemeSeed: settings.highlightColor,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: settings.highlightColor,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: settings.highlightColor,
+          secondary: settings.highlightColor,
+        ),
         textTheme: GoogleFonts.interTextTheme(ThemeData.dark().textTheme),
       ),
 

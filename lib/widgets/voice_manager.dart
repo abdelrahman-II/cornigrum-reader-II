@@ -9,35 +9,6 @@ import '../models/voice.dart';
 import '../providers/reader_provider.dart';
 import '../providers/settings_provider.dart';
 
-final defaultVoicesProvider = Provider<List<Voice>>((ref) {
-  return const [
-    Voice(
-      id: 'af_heart',
-      name: 'Heart (US Female)',
-      embeddingPath: 'assets/voices/af_heart.bin',
-      description: 'Warm & natural female voice',
-    ),
-    Voice(
-      id: 'af_bella',
-      name: 'Bella (US Female)',
-      embeddingPath: 'assets/voices/af_bella.bin',
-      description: 'Clear & expressive female voice',
-    ),
-    Voice(
-      id: 'am_adam',
-      name: 'Adam (US Male)',
-      embeddingPath: 'assets/voices/am_adam.bin',
-      description: 'Deep & calm male voice',
-    ),
-    Voice(
-      id: 'bf_emma',
-      name: 'Emma (UK Female)',
-      embeddingPath: 'assets/voices/bf_emma.bin',
-      description: 'British accent female voice',
-    ),
-  ];
-});
-
 class VoiceManager extends ConsumerStatefulWidget {
   const VoiceManager({super.key});
 
@@ -141,15 +112,10 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
 
   @override
   Widget build(BuildContext context) {
-    final defaultVoices = ref.watch(defaultVoicesProvider);
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
-    // Combine custom voices with default built-in voices if they exist
-    final allVoices = <Voice>[
-      ...settings.customVoices,
-      ...defaultVoices,
-    ];
+    final allVoices = settings.customVoices;
 
     final currentVoicePath = settings.voicePath;
     final hasVoice = currentVoicePath.isNotEmpty &&
@@ -179,8 +145,17 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
         const SizedBox(height: 8),
 
         if (allVoices.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
+        //   const Padding(
+        //     padding: EdgeInsets.symmetric(vertical: 8),
+        //     child: Text(
+        //       'No voices imported yet. Click below to add a voice binary (.bin).',
+        //       style: TextStyle(color: Colors.grey, fontSize: 13),
+        //     ),
+        //   )
+
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               'No voices imported yet. Click below to add a voice binary (.bin).',
               style: TextStyle(color: Colors.grey, fontSize: 13),
@@ -190,9 +165,6 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
           ...allVoices.map((voice) {
             final exists = voice.embeddingPath.startsWith('assets/') ||
                 File(voice.embeddingPath).existsSync();
-
-                // final isSelected = settings.voicePath == voice.embeddingPath;
-                //final isSelected = voice.id == settings.voiceName;
 
             return RadioListTile<String>(
               title: Row(
@@ -217,15 +189,15 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
                   fontSize: 12,
                 ),
               ),
-              // ignore: deprecated_member_use
-              value: voice.embeddingPath,
-              groupValue: settings.voicePath,
+              value: voice.id,  // استخدام id بدلاً من embeddingPath
+              groupValue: _getSelectedVoiceId(settings), // دالة مساعدة
               activeColor: settings.highlightColor,
-              // ignore: deprecated_member_use
               onChanged: exists
                   ? (val) async {
                       if (val != null) {
-                        await settingsNotifier.updateVoice(val, voice.name);
+                        // البحث عن الصوت المطابق
+                        final selectedVoice = allVoices.firstWhere((v) => v.id == val);
+                        await settingsNotifier.updateVoice(selectedVoice.embeddingPath, selectedVoice.name);
                         ref.read(readerProvider.notifier).initEngine();
                       }
                     }
@@ -251,4 +223,15 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
       ],
     );
   }
+
+  String _getSelectedVoiceId(SettingsModel settings) {
+    final allVoices = settings.customVoices;
+    for (var v in allVoices) {
+      if (v.embeddingPath == settings.voicePath) {
+        return v.id;
+      }
+    }
+    return '';
+  }
+
 }

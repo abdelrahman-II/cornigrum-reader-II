@@ -11,12 +11,12 @@ class AnalyticsData {
   final List<double> latencyHistory;
 
   const AnalyticsData({
-    this.averageRtf = 0.35,
-    this.averageLatencyMs = 120.0,
+    this.averageRtf = 0.0,
+    this.averageLatencyMs = 0.0,
     this.totalSentencesRead = 0,
     this.totalListeningMinutes = 0,
-    this.rtfHistory = const [0.32, 0.35, 0.38, 0.34, 0.36, 0.33, 0.35],
-    this.latencyHistory = const [110, 125, 118, 130, 115, 120, 122],
+    this.rtfHistory = const [],
+    this.latencyHistory = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -29,17 +29,13 @@ class AnalyticsData {
       };
 
   factory AnalyticsData.fromJson(Map<String, dynamic> json) => AnalyticsData(
-        averageRtf: (json['averageRtf'] ?? 0.35).toDouble(),
-        averageLatencyMs: (json['averageLatencyMs'] ?? 120.0).toDouble(),
-        totalSentencesRead: json['totalSentencesRead'] ?? 0,
-        totalListeningMinutes: json['totalListeningMinutes'] ?? 0,
-        rtfHistory: (json['rtfHistory'] as List? ?? [0.32, 0.35, 0.38, 0.34, 0.36, 0.33, 0.35])
-            .map((e) => (e as num).toDouble())
-            .toList(),
-        latencyHistory: (json['latencyHistory'] as List? ?? [110, 125, 118, 130, 115, 120, 122])
-            .map((e) => (e as num).toDouble())
-            .toList(),
-      );
+    averageRtf: (json['averageRtf'] ?? 0.0).toDouble(),
+    averageLatencyMs: (json['averageLatencyMs'] ?? 0.0).toDouble(),
+    totalSentencesRead: json['totalSentencesRead'] ?? 0,
+    totalListeningMinutes: json['totalListeningMinutes'] ?? 0,
+    rtfHistory: (json['rtfHistory'] as List? ?? []).map((e) => (e as num).toDouble()).toList(),
+    latencyHistory: (json['latencyHistory'] as List? ?? []).map((e) => (e as num).toDouble()).toList(),
+  );
 }
 
 class AnalyticsNotifier extends StateNotifier<AnalyticsData> {
