@@ -56,6 +56,9 @@ dependencies:
   # ─── Charts & Analytics ────────────────────────────────────
   fl_chart: ^0.68.0
 
+  # ─── Bug in flutter_onnxruntime ────────────────────────────────────
+  flutter_onnxruntime: ^1.4.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -88,3 +91,4 @@ flutter:
     
 dependency_overrides:
   async: 2.11.0
+  flutter_onnxruntime: ^1.4.3

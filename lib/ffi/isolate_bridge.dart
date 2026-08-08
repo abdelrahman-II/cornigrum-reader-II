@@ -71,7 +71,7 @@ class CornigrumIsolateBridge {
     required String voicePath,
     required String voiceName,
     required String configPath,
-    bool isInt8 = false,
+    bool isInt8 = true,
   }) async {
     debugPrint('[Bridge] Initializing Kokoro TTS Engine...');
     _modelPath = modelPath;
