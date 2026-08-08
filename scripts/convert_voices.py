@@ -56,24 +56,6 @@ def convert_all_voices_separately():
     index_data = []
     extracted_count = 0
 
-    index_data.append({
-        "id": "us_gold",
-        "name": "us_gold",
-        "file": "us_gold.json"
-    })
-
-    index_data.append({
-        "id": "us_silver",
-        "name": "us_silver",
-        "file": "us_silver.json"
-    })
-
-    index_data.append({
-        "id": "lexicon",
-        "name": "lexicon",
-        "file": "lexicon.json"
-    })
-
     LIMIT = 3
     items_to_process = list(data.items())[:LIMIT]
 
