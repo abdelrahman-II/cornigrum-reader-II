@@ -101,5 +101,11 @@ def convert_all_voices_separately():
     print(f"\nIndex file generated successfully at: {INDEX_PATH}")
     print(f"Success! Total {extracted_count} voices extracted to '{OUTPUT_DIR}' directory.")
 
+    if os.path.exists(BIN_PATH):
+        os.remove(BIN_PATH)
+        print(f"{BIN_PATH} Deleted.")
+    else:
+        print("الملف غير موجود.")
+
 if __name__ == "__main__":
     convert_all_voices_separately()
