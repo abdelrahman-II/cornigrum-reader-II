@@ -154,8 +154,8 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
         //   )
 
 
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
             child: Text(
               'No voices imported yet. Click below to add a voice binary (.bin).',
               style: TextStyle(color: Colors.grey, fontSize: 13),
