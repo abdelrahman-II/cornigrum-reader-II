@@ -16,7 +16,7 @@ dependencies:
 
   # ─── Kokoro TTS Package ──────────────────────────────────
   kokoro_tts_flutter: ^0.2.0+1
-  flutter_onnxruntime: ^1.0.0
+  # flutter_onnxruntime: ^1.0.0
 
   # ─── Audio & Background Playback ───────────────────────────
   audio_service: ^0.18.15
@@ -91,4 +91,4 @@ flutter:
     
 dependency_overrides:
   async: 2.11.0
-  flutter_onnxruntime: ^1.4.3
+  # flutter_onnxruntime: ^1.4.3
