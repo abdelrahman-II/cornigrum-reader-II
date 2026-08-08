@@ -159,7 +159,10 @@ class CornigrumIsolateBridge {
         return forcedChunks;
       }
 
-      final regex = RegExp('([^$currentPattern]+[$currentPattern]+|[^$currentPattern]+$)');
+      final tempattern = currentPattern;
+      final regex = RegExp('([^$tempattern]+[$tempattern]+|[^$tempattern]+\$)');
+
+
       final matches = regex.allMatches(content);
       
       List<String> result = [];
