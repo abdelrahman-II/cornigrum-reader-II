@@ -95,6 +95,8 @@ jobs:
             --dart-define=FLUTTER_BUILD_NAME=1.0.0 \
             --dart-define=FLUTTER_BUILD_NUMBER=1
 
+
+
       # ─── Upload Directly as APK (GitHub Release) ────────
       - name: Create Nightly Release & Upload APK
         uses: softprops/action-gh-release@v2
@@ -105,7 +107,22 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/flutter-apk/app-*-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+          
+      # # ─── Upload Directly as APK (GitHub Release) ────────
+      # - name: Create Nightly Release & Upload APK
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     tag_name: nightly-build
+      #     name: "CorNigrum Reader (Latest Build)"
+      #     body: "أحدث نسخة تجريبية جاهزة للتثبيت المباشر من CorNigrum Reader."
+      #     draft: false
+      #     prerelease: true
+      #     files: |
+      #       build/app/outputs/flutter-apk/app-release.apk
+      #   env:
+      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
