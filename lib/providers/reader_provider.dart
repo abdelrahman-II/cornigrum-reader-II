@@ -8,7 +8,6 @@ import '../models/sentence.dart';
 import 'isolate_bridge_provider.dart';
 import 'library_provider.dart';
 import 'settings_provider.dart';
-
 import 'analytics_provider.dart';
 
 class ReaderState {
@@ -22,8 +21,8 @@ class ReaderState {
   final int queueCapacity;
   final double playbackSpeed;
   final String? errorMessage;
-  final int charStart;   
-  final int charEnd;     
+  final int charStart;
+  final int charEnd;
 
   const ReaderState({
     this.currentBook,
@@ -36,8 +35,8 @@ class ReaderState {
     this.queueCapacity = 5,
     this.playbackSpeed = 1.0,
     this.errorMessage,
-    this.charStart = 0,   
-    this.charEnd = 0,     
+    this.charStart = 0,
+    this.charEnd = 0,
   });
 
   ReaderState copyWith({
@@ -51,8 +50,8 @@ class ReaderState {
     int? queueCapacity,
     double? playbackSpeed,
     String? errorMessage,
-    int? charStart,      
-    int? charEnd,        
+    int? charStart,
+    int? charEnd,
   }) {
     return ReaderState(
       currentBook: currentBook ?? this.currentBook,
@@ -65,8 +64,8 @@ class ReaderState {
       queueCapacity: queueCapacity ?? this.queueCapacity,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       errorMessage: errorMessage,
-      charStart: charStart ?? this.charStart,  
-      charEnd: charEnd ?? this.charEnd,        
+      charStart: charStart ?? this.charStart,
+      charEnd: charEnd ?? this.charEnd,
     );
   }
 }
@@ -93,23 +92,25 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     if (settings.voicePath.isEmpty) {
       state = state.copyWith(
         isEngineReady: false,
-        errorMessage: 'No Voice embedding file (.bin) loaded. Please import a voice file in Settings.',
+        errorMessage: 'No Voice embedding file (.bin/.json) loaded. Please select a voice in Settings.',
       );
       return;
     }
 
-    if (!settings.modelPath.startsWith('assets/') && !File(settings.modelPath).existsSync()) {
+    // التحقق من وجود الملفات
+    final modelFile = File(settings.modelPath);
+    final voiceFile = File(settings.voicePath);
+    if (!modelFile.existsSync() && !settings.modelPath.startsWith('assets/')) {
       state = state.copyWith(
         isEngineReady: false,
-        errorMessage: 'Model file not found on device at:\n${settings.modelPath}\nPlease import your .onnx model.',
+        errorMessage: 'Model file not found at:\n${settings.modelPath}',
       );
       return;
     }
-
-    if (!settings.voicePath.startsWith('assets/') && !File(settings.voicePath).existsSync()) {
+    if (!voiceFile.existsSync() && !settings.voicePath.startsWith('assets/')) {
       state = state.copyWith(
         isEngineReady: false,
-        errorMessage: 'Voice file not found on device at:\n${settings.voicePath}\nPlease import your voice .bin file.',
+        errorMessage: 'Voice file not found at:\n${settings.voicePath}',
       );
       return;
     }
@@ -120,7 +121,6 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         voicePath: settings.voicePath,
         voiceName: settings.voiceName,
         configPath: 'assets/config/config.json',
-        //vocabPath: 'assets/config/vocab.json',
         isInt8: settings.isQuantizedInt8,
       );
 
@@ -135,9 +135,18 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
           latencyMs: latencyMs.toDouble(),
         );
       };
-      
+
       state = state.copyWith(isEngineReady: true, errorMessage: null);
       _startStatusPolling();
+
+      // ** التعديل الأساسي: إعادة تحميل الكتاب الحالي إذا كان موجوداً **
+      final currentBook = state.currentBook;
+      if (currentBook != null && currentBook.chapters.isNotEmpty) {
+        final chapterIdx = state.currentChapterIndex.clamp(0, currentBook.chapters.length - 1);
+        final sentenceIdx = state.currentSentenceIndex;
+        // استدعاء loadBook لإعادة تحليل النص وربط المحرك الجديد به
+        loadBook(currentBook, chapterIndex: chapterIdx, sentenceIndex: sentenceIdx);
+      }
     } catch (e) {
       state = state.copyWith(
         isEngineReady: false,
@@ -153,7 +162,6 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     final chapter = book.chapters[actualChapterIdx];
 
     try {
-      // تحديث الفواصل بناءً على الإعدادات الحالية قبل القيام بتفكيك وتحليل النص
       final settings = _ref.read(settingsProvider);
       await _bridge.setDelimiters(
         settings.primaryDelimiters,
@@ -165,7 +173,8 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         parsedSentences.length,
         (i) => Sentence(index: i, text: parsedSentences[i]),
       );
-      
+
+      // استخدام clamp لتجنب القفز خارج النطاق
       final clampedIndex = sentences.isEmpty ? 0 : sentenceIndex.clamp(0, sentences.length - 1);
 
       state = state.copyWith(
@@ -173,26 +182,20 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         currentChapterIndex: actualChapterIdx,
         currentSentenceIndex: clampedIndex,
         sentences: sentences,
-        charStart: 0, 
-        charEnd: 0, 
+        charStart: 0,
+        charEnd: 0,
         errorMessage: null,
       );
 
       _ref.read(libraryProvider.notifier).updateBookProgress(
             bookId: book.id,
             chapterIndex: actualChapterIdx,
-            sentenceIndex: sentenceIndex,
-            progressPercent: sentences.isEmpty
-                ? 0.0
-                : sentenceIndex / sentences.length,
+            sentenceIndex: clampedIndex,
+            progressPercent: sentences.isEmpty ? 0.0 : clampedIndex / sentences.length,
           );
 
       if (state.isEngineReady) {
-        await _bridge.prefetch(
-          sentenceIndex,
-          3,
-          state.playbackSpeed,
-        );
+        await _bridge.prefetch(clampedIndex, 3, state.playbackSpeed);
       }
     } catch (e) {
       state = state.copyWith(errorMessage: 'Failed to parse text: $e');
@@ -239,9 +242,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
             bookId: state.currentBook!.id,
             chapterIndex: state.currentChapterIndex,
             sentenceIndex: index,
-            progressPercent: state.sentences.isEmpty
-                ? 0.0
-                : index / state.sentences.length,
+            progressPercent: state.sentences.isEmpty ? 0.0 : index / state.sentences.length,
           );
     }
 
@@ -271,7 +272,6 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         if (status.currentSentence >= 0 &&
             status.currentSentence != state.currentSentenceIndex) {
           state = state.copyWith(currentSentenceIndex: status.currentSentence);
-
           _lastPrefetchedIndex = status.currentSentence - 1;
 
           if (state.currentBook != null) {
@@ -310,8 +310,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
   }
 }
 
-final readerProvider =
-    StateNotifierProvider<ReaderNotifier, ReaderState>((ref) {
+final readerProvider = StateNotifierProvider<ReaderNotifier, ReaderState>((ref) {
   final bridge = ref.watch(isolateBridgeProvider);
   return ReaderNotifier(bridge, ref);
 });

@@ -1,29 +1,87 @@
+# لتحويل الاصوات الى ملف واحد كبير غير موصى به بسبب الحجم
+
+# import os
+# import json
+# import numpy as np
+
+# BIN_PATH = "assets/voices/voices-v1.0.bin"
+# OUTPUT_JSON_PATH = "assets/voices/voices.json"
+
+# def convert():
+#     if not os.path.exists(BIN_PATH):
+#         print(f"Error: {BIN_PATH} not found!")
+#         exit(1)
+
+#     print(f"Loading {BIN_PATH}...")
+#     data = np.load(BIN_PATH)
+
+#     # تحويل كافة الأصوات إلى Dictionary
+#     all_voices = {k: v.tolist() for k, v in data.items()}
+
+#     # إنشاء المجلد إذا لم يكن موجوداً
+#     os.makedirs(os.path.dirname(OUTPUT_JSON_PATH), exist_ok=True)
+
+#     print(f"Writing to {OUTPUT_JSON_PATH}...")
+#     with open(OUTPUT_JSON_PATH, "w") as f:
+#         json.dump(all_voices, f)
+
+#     print("Conversion completed successfully!")
+
+# if __name__ == "__main__":
+#     convert()
+
+
+
+
 import os
 import json
 import numpy as np
 
 BIN_PATH = "assets/voices/voices-v1.0.bin"
-OUTPUT_JSON_PATH = "assets/voices/voices.json"
+OUTPUT_DIR = "assets/voices"
+INDEX_PATH = os.path.join(OUTPUT_DIR, "index.json")
 
-def convert():
+def convert_all_voices_separately():
+    # 1. التأكد من وجود الملف المصدر
     if not os.path.exists(BIN_PATH):
-        print(f"Error: {BIN_PATH} not found!")
-        exit(1)
+        print(f"Error: {BIN_PATH} not found at {BIN_PATH}")
+        return
+
+    # 2. إنشاء مجلد المخرجات إن لم يكن موجوداً
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     print(f"Loading {BIN_PATH}...")
     data = np.load(BIN_PATH)
 
-    # تحويل كافة الأصوات إلى Dictionary
-    all_voices = {k: v.tolist() for k, v in data.items()}
+    index_data = []
+    extracted_count = 0
 
-    # إنشاء المجلد إذا لم يكن موجوداً
-    os.makedirs(os.path.dirname(OUTPUT_JSON_PATH), exist_ok=True)
+    # 3. المرور على العناصر واستخراج الملفات
+    for key, value in data.items():
+        voice_filename = f"{key}.json"
+        output_path = os.path.join(OUTPUT_DIR, voice_filename)
+        
+        # حفظ بيانات الصوت في ملف JSON مستقل
+        voice_data = value.tolist()
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(voice_data, f)
+            
+        # إضافة عنصر الصوت إلى الفهرس
+        index_data.append({
+            "id": key,
+            "name": key,
+            "file": voice_filename
+        })
 
-    print(f"Writing to {OUTPUT_JSON_PATH}...")
-    with open(OUTPUT_JSON_PATH, "w") as f:
-        json.dump(all_voices, f)
+        extracted_count += 1
+        print(f"Extracted: {voice_filename}")
 
-    print("Conversion completed successfully!")
+    # 4. إنشاء وتنسيق ملف index.json
+    with open(INDEX_PATH, "w", encoding="utf-8") as f:
+        json.dump(index_data, f, ensure_ascii=False, indent=2)
+
+    print(f"\nIndex file generated successfully at: {INDEX_PATH}")
+    print(f"Success! Total {extracted_count} voices extracted to '{OUTPUT_DIR}' directory.")
 
 if __name__ == "__main__":
-    convert()
+    convert_all_voices_separately()

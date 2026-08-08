@@ -1,14 +1,11 @@
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
 
 import '../models/voice.dart';
 import '../providers/reader_provider.dart';
 import '../providers/settings_provider.dart';
-
 import '../models/settings_model.dart';
 
 class VoiceManager extends ConsumerStatefulWidget {
@@ -19,96 +16,39 @@ class VoiceManager extends ConsumerStatefulWidget {
 }
 
 class _VoiceManagerState extends ConsumerState<VoiceManager> {
-  bool _isImporting = false;
+  List<Voice> _builtInVoices = [];
+  bool _isLoading = true;
 
-  Future<void> _pickAndImportVoice() async {
-    setState(() => _isImporting = true);
+  @override
+  void initState() {
+    super.initState();
+    _loadVoices();
+  }
+
+  Future<void> _loadVoices() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-      );
-
-      if (result != null && result.files.single.path != null) {
-        final pickedFile = File(result.files.single.path!);
-        final rawFileName = p.basenameWithoutExtension(pickedFile.path);
-
-        final nameController = TextEditingController(text: rawFileName);
-
-        final voiceName = await showDialog<String>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Voice Preset Name'),
-            content: TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Voice Name',
-                hintText: 'e.g. Heart Female, Custom Voice 1',
-                border: OutlineInputBorder(),
-              ),
-              autofocus: true,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, null),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final text = nameController.text.trim();
-                  Navigator.pop(context, text.isEmpty ? rawFileName : text);
-                },
-                child: const Text('Save Voice'),
-              ),
-            ],
-          ),
+      // تحميل ملف index.json من assets/voices/
+      final jsonString = await rootBundle.loadString('assets/voices/index.json');
+      final List<dynamic> data = jsonDecode(jsonString);
+      final voices = data.map((item) {
+        return Voice(
+          id: item['id'] ?? item['file'],
+          name: item['name'] ?? item['file'].replaceAll('.json', ''),
+          embeddingPath: 'assets/voices/${item['file']}',
+          isBuiltIn: true,
         );
-
-        if (voiceName == null) {
-          setState(() => _isImporting = false);
-          return;
-        }
-
-        final appDir = await getApplicationDocumentsDirectory();
-        final voicesDir = Directory(p.join(appDir.path, 'voices'));
-        if (!await voicesDir.exists()) {
-          await voicesDir.create(recursive: true);
-        }
-
-        final targetFileName = p.basename(pickedFile.path);
-        final targetPath = p.join(voicesDir.path, targetFileName);
-        final savedVoiceFile = await pickedFile.copy(targetPath);
-
-        final newVoice = Voice(
-          id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
-          name: voiceName,
-          embeddingPath: savedVoiceFile.path,
-          description: 'Custom imported voice binary',
-          isBuiltIn: false,
-        );
-
-        await ref.read(settingsProvider.notifier).addCustomVoice(newVoice);
-        await ref.read(readerProvider.notifier).initEngine();
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Voice "$voiceName" imported successfully!'),
-              backgroundColor: Colors.green.shade800,
-            ),
-          );
-        }
-      }
+      }).toList();
+      setState(() {
+        _builtInVoices = voices;
+        _isLoading = false;
+      });
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to import voice: $e'),
-            backgroundColor: Colors.red.shade800,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isImporting = false);
+      // في حالة عدم وجود ملف index، نعرض رسالة خطأ
+      setState(() {
+        _isLoading = false;
+        _builtInVoices = [];
+      });
+      debugPrint('Failed to load voices index: $e');
     }
   }
 
@@ -117,11 +57,36 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
     final settings = ref.watch(settingsProvider);
     final settingsNotifier = ref.read(settingsProvider.notifier);
 
-    final allVoices = settings.customVoices;
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_builtInVoices.isEmpty) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Kokoro Voice Preset',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'No voices found in assets/voices/. Please add voice JSON files and an index.json file.',
+              style: TextStyle(color: Colors.orange),
+            ),
+          ),
+        ],
+      );
+    }
 
     final currentVoicePath = settings.voicePath;
-    final hasVoice = currentVoicePath.isNotEmpty &&
-        (currentVoicePath.startsWith('assets/') || File(currentVoicePath).existsSync());
+    final hasVoice = currentVoicePath.isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -140,100 +105,38 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
                   settings.voiceName,
                   style: const TextStyle(fontSize: 11),
                 ),
-                backgroundColor: Colors.green.withValues(alpha: 0.1),
+                backgroundColor: Colors.green.withOpacity(0.1),
               ),
           ],
         ),
         const SizedBox(height: 8),
 
-        if (allVoices.isEmpty)
-        //   const Padding(
-        //     padding: EdgeInsets.symmetric(vertical: 8),
-        //     child: Text(
-        //       'No voices imported yet. Click below to add a voice binary (.bin).',
-        //       style: TextStyle(color: Colors.grey, fontSize: 13),
-        //     ),
-        //   )
-
-
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No voices imported yet. Click below to add a voice binary (.bin).',
-              style: TextStyle(color: Colors.grey, fontSize: 13),
+        // عرض قائمة الأصوات المدمجة
+        ..._builtInVoices.map((voice) {
+          final isSelected = voice.embeddingPath == settings.voicePath;
+          return RadioListTile<String>(
+            title: Text(voice.name),
+            subtitle: Text(
+              voice.embeddingPath,
+              style: const TextStyle(fontSize: 11, color: Colors.grey),
             ),
-          )
-        else
-          ...allVoices.map((voice) {
-            final exists = voice.embeddingPath.startsWith('assets/') ||
-                File(voice.embeddingPath).existsSync();
-
-            return RadioListTile<String>(
-              title: Row(
-                children: [
-                  Expanded(child: Text(voice.name)),
-                  if (!voice.isBuiltIn)
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                      onPressed: () async {
-                        await settingsNotifier.removeCustomVoice(voice.id);
-                        ref.read(readerProvider.notifier).initEngine();
-                      },
-                    ),
-                ],
-              ),
-              subtitle: Text(
-                exists
-                    ? (voice.description ?? p.basename(voice.embeddingPath))
-                    : '${voice.description ?? ''} (File missing)',
-                style: TextStyle(
-                  color: exists ? Colors.grey : Colors.red,
-                  fontSize: 12,
-                ),
-              ),
-              value: voice.id,  // استخدام id بدلاً من embeddingPath
-              groupValue: _getSelectedVoiceId(settings), // دالة مساعدة
-              activeColor: settings.highlightColor,
-              onChanged: exists
-                  ? (val) async {
-                      if (val != null) {
-                        // البحث عن الصوت المطابق
-                        final selectedVoice = allVoices.firstWhere((v) => v.id == val);
-                        await settingsNotifier.updateVoice(selectedVoice.embeddingPath, selectedVoice.name);
-                        ref.read(readerProvider.notifier).initEngine();
-                      }
-                    }
-                  : null,
-            );
-          }),
+            value: voice.id,
+            groupValue: isSelected ? voice.id : null,
+            activeColor: settings.highlightColor,
+            onChanged: (val) async {
+              if (val != null) {
+                await settingsNotifier.updateVoice(voice.embeddingPath, voice.name);
+                // إعادة تهيئة المحرك بالصوت الجديد
+                ref.read(readerProvider.notifier).initEngine();
+              }
+            },
+          );
+        }),
 
         const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            icon: _isImporting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.record_voice_over_rounded),
-            label: Text(_isImporting ? 'Importing Voice...' : 'Import Voice File (.bin)'),
-            onPressed: _isImporting ? null : _pickAndImportVoice,
-          ),
-        ),
+        // إزالة زر رفع الصوت نهائياً
+        // يمكن إضافة زر لتحديث القائمة إذا أردنا
       ],
     );
   }
-
-  String _getSelectedVoiceId(SettingsModel settings) {
-    final allVoices = settings.customVoices;
-    for (var v in allVoices) {
-      if (v.embeddingPath == settings.voicePath) {
-        return v.id;
-      }
-    }
-    return '';
-  }
-
 }

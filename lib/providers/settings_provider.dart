@@ -69,6 +69,33 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
     await _storage.saveSettings(state);
   }
 
+  // دالة لتحديث المسار والنوع معًا (لتجنب التناقض)
+  Future<void> updateModelPathWithInt8(String path, bool isInt8) async {
+    state = state.copyWith(modelPath: path, isQuantizedInt8: isInt8);
+    await _storage.saveSettings(state);
+  }
+
+  // دالة مساعدة لحذف الموديل بالكامل وإعادة تعيين الإعدادات المرتبطة
+  Future<void> clearModel() async {
+    final currentPath = state.modelPath;
+    if (currentPath.isNotEmpty) {
+      try {
+        final file = File(currentPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
+      } catch (_) {
+        // تجاهل أخطاء الحذف (قد يكون الملف غير موجود أو محمياً)
+      }
+    }
+    state = state.copyWith(
+      modelPath: '',
+      isQuantizedInt8: false,
+    );
+    await _storage.saveSettings(state);
+  }
+
+  // دالة قديمة للتحديث (نحتفظ بها للتوافق، لكننا نفضل updateModelPathWithInt8)
   Future<void> updateModelPath(String path) async {
     state = state.copyWith(modelPath: path);
     await _storage.saveSettings(state);

@@ -17,6 +17,15 @@ class ModelManager extends ConsumerStatefulWidget {
 
 class _ModelManagerState extends ConsumerState<ModelManager> {
   bool _isImporting = false;
+  bool? _isInt8ForCurrentModel; // مخزن مؤقت للخيار المرتبط بالموديل الحالي
+
+  @override
+  void initState() {
+    super.initState();
+    // قراءة الخيار من الإعدادات
+    final settings = ref.read(settingsProvider);
+    _isInt8ForCurrentModel = settings.isQuantizedInt8;
+  }
 
   Future<void> _pickAndImportModel() async {
     setState(() => _isImporting = true);
@@ -39,6 +48,30 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
           }
         }
 
+        // سؤال المستخدم عن نوع Int8
+        final isInt8 = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Model Type'),
+            content: const Text('Is this an Int8 quantized model?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No (FP32)'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes (Int8)'),
+              ),
+            ],
+          ),
+        );
+        if (isInt8 == null) {
+          setState(() => _isImporting = false);
+          return;
+        }
+
+        // نسخ الملف إلى مجلد التطبيق
         final appDir = await getApplicationDocumentsDirectory();
         final modelsDir = Directory(p.join(appDir.path, 'models'));
         if (!await modelsDir.exists()) {
@@ -47,9 +80,15 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
 
         final targetFileName = p.basename(pickedFile.path);
         final targetPath = p.join(modelsDir.path, targetFileName);
+        // نسخ (لا نقل)
         final savedModelFile = await pickedFile.copy(targetPath);
 
+        // تحديث الإعدادات
         await ref.read(settingsProvider.notifier).updateModelPath(savedModelFile.path);
+        await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(isInt8);
+        _isInt8ForCurrentModel = isInt8;
+
+        // إعادة تهيئة المحرك
         await ref.read(readerProvider.notifier).initEngine();
 
         if (mounted) {
@@ -72,6 +111,61 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
       }
     } finally {
       if (mounted) setState(() => _isImporting = false);
+    }
+  }
+
+  Future<void> _deleteModel() async {
+    final settings = ref.read(settingsProvider);
+    final modelPath = settings.modelPath;
+    if (modelPath.isEmpty) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Model'),
+        content: const Text('Are you sure you want to delete this model file?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      final file = File(modelPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+      // إعادة تعيين الإعدادات
+      await ref.read(settingsProvider.notifier).updateModelPath('');
+      await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(false);
+      _isInt8ForCurrentModel = false;
+      // إعادة تهيئة المحرك (سيظهر خطأ بعدم وجود موديل)
+      await ref.read(readerProvider.notifier).initEngine();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Model deleted successfully.'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete model: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -124,6 +218,8 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
         (modelPath.startsWith('assets/') || File(modelPath).existsSync());
 
     final fileName = modelPath.isNotEmpty ? p.basename(modelPath) : 'None';
+    // قراءة قيمة Int8 المخزنة مع الموديل
+    final isInt8 = settings.isQuantizedInt8;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -146,8 +242,8 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: hasModel 
-                ? Colors.green.withValues(alpha: 0.1) 
-                : Colors.orange.withValues(alpha: 0.1),
+                ? Colors.green.withOpacity(0.1) 
+                : Colors.orange.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
               color: hasModel ? Colors.green.shade400 : Colors.orange.shade400,
@@ -177,24 +273,36 @@ class _ModelManagerState extends ConsumerState<ModelManager> {
                       style: const TextStyle(fontSize: 12, color: Colors.grey),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    if (hasModel)
+                      Text(
+                        'Int8: ${isInt8 ? "Yes" : "No"}',
+                        style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
                   ],
                 ),
               ),
+              if (hasModel)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: _deleteModel,
+                  tooltip: 'Delete model',
+                ),
             ],
           ),
         ),
         const SizedBox(height: 12),
+
+        // عرض حالة خيار Int8 (غير قابل للتغيير أثناء وجود موديل)
         SwitchListTile(
           title: const Text('Int8 Quantized Model'),
-          subtitle: const Text('Enable int8 model flag for faster performance & low memory'),
-          value: settings.isQuantizedInt8 || modelPath.toLowerCase().contains('int8'),
-          onChanged: (val) async {
-            await ref.read(settingsProvider.notifier).updateIsQuantizedInt8(val);
-            ref.read(readerProvider.notifier).initEngine();
-          },
+          subtitle: const Text('This option is locked to the imported model type.'),
+          value: isInt8,
+          onChanged: null, // معطل
           contentPadding: EdgeInsets.zero,
         ),
         const SizedBox(height: 8),
+
+        // زر رفع الموديل
         SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
