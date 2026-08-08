@@ -120,7 +120,7 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
         voicePath: settings.voicePath,
         voiceName: settings.voiceName,
         configPath: 'assets/config/config.json',
-        vocabPath: 'assets/config/vocab.json',
+        //vocabPath: 'assets/config/vocab.json',
         isInt8: settings.isQuantizedInt8,
       );
 

@@ -79,11 +79,12 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
   assets:
-    - assets/models/
-    - assets/voices/
-    - assets/config/
-    - assets/fonts/
-    - assets/icon/
+    - assets/
+    # - assets/models/
+    # - assets/voices/
+    # - assets/config/
+    # - assets/fonts/
+    # - assets/icon/
     
 dependency_overrides:
   async: 2.11.0
