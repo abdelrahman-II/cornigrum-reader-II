@@ -74,13 +74,17 @@ def convert_all_voices_separately():
         "file": "lexicon.json"
     })
 
-    # 3. المرور على العناصر واستخراج الملفات
-    for key, value in data.items():
+    LIMIT = 3
+    items_to_process = list(data.items())[:LIMIT]
+
+    for key, value in items_to_process:
         voice_filename = f"{key}.json"
         output_path = os.path.join(OUTPUT_DIR, voice_filename)
         
-        # حفظ بيانات الصوت في ملف JSON مستقل
-        voice_data = value.tolist()
+        # التعديل هنا: جعل بيانات الصوت على شكل قاموس { "اسم_الصوت": [المصفوفة] }
+        # ليناسب تماماً ما تتوقعه المكتبة عند قراءة أي ملف صوتي منفرد
+        voice_data = {key: value.tolist()}
+        
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(voice_data, f)
             
