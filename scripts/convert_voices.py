@@ -56,6 +56,24 @@ def convert_all_voices_separately():
     index_data = []
     extracted_count = 0
 
+    index_data.append({
+        "id": "us_gold",
+        "name": "us_gold",
+        "file": "us_gold.json"
+    })
+
+    index_data.append({
+        "id": "us_silver",
+        "name": "us_silver",
+        "file": "us_silver.json"
+    })
+
+    index_data.append({
+        "id": "lexicon",
+        "name": "lexicon",
+        "file": "lexicon.json"
+    })
+
     # 3. المرور على العناصر واستخراج الملفات
     for key, value in data.items():
         voice_filename = f"{key}.json"

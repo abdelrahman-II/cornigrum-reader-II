@@ -80,11 +80,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/
-    # - assets/models/
-    # - assets/voices/
-    # - assets/config/
-    # - assets/fonts/
-    # - assets/icon/
+    - assets/models/
+    - assets/voices/
+    - assets/config/
+    - assets/fonts/
+    - assets/icon/
     
 dependency_overrides:
   async: 2.11.0
