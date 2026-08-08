@@ -9,6 +9,8 @@ import '../models/voice.dart';
 import '../providers/reader_provider.dart';
 import '../providers/settings_provider.dart';
 
+import '../models/settings_model.dart';
+
 class VoiceManager extends ConsumerStatefulWidget {
   const VoiceManager({super.key});
 
