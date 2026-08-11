@@ -49,6 +49,7 @@ class OnnxModelRunner {
     required List<int> tokens,
     required Float32List voice,
     required double speed,
+    bool isInt8 = false,
   }) async {
     if (_session == null || !_isInitialized) {
       throw Exception('Model not initialized. Call initialize() first.');

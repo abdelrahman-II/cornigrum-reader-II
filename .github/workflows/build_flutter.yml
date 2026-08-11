@@ -23,8 +23,8 @@ jobs:
       - name: Set up Android NDK
         uses: android-actions/setup-android@v3
         with:
-          # packages: 'ndk;25.2.9519653 cmake;3.22.1'
-          packages: 'ndk;26.1.10909125'
+          # packages: 'ndk;26.1.10909125'
+          packages: 'ndk;27.0.12077973'
 
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
@@ -61,9 +61,11 @@ jobs:
         run: |
           flutter clean
 
+      # ─── Install Dependencies (Main & Packages) ─────────
       - name: Install Dependencies
         run: |
           flutter pub get
+          cd packages/kokoro_tts && flutter pub get 
 
       # ─── Auto-Fix Warnings & Format ─────────────────────
       - name: Apply Automatic Fixes & Format
@@ -91,8 +93,6 @@ jobs:
             --dart-define=FLUTTER_BUILD_NAME=1.0.0 \
             --dart-define=FLUTTER_BUILD_NUMBER=1
 
-
-
       # ─── Upload Directly as APK (GitHub Release) ────────
       - name: Create Nightly Release & Upload APK
         uses: softprops/action-gh-release@v2
@@ -106,19 +106,3 @@ jobs:
             build/app/outputs/flutter-apk/app-*-release.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-          
-      # # ─── Upload Directly as APK (GitHub Release) ────────
-      # - name: Create Nightly Release & Upload APK
-      #   uses: softprops/action-gh-release@v2
-      #   with:
-      #     tag_name: nightly-build
-      #     name: "CorNigrum Reader (Latest Build)"
-      #     body: "أحدث نسخة تجريبية جاهزة للتثبيت المباشر من CorNigrum Reader."
-      #     draft: false
-      #     prerelease: true
-      #     files: |
-      #       build/app/outputs/flutter-apk/app-release.apk
-      #   env:
-      #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
