@@ -61,10 +61,6 @@ jobs:
         run: |
           flutter clean
 
-      - name: Clean project
-        run: |
-          flutter clean
-
       - name: Install Dependencies
         run: |
           flutter pub get
