@@ -15,8 +15,11 @@ dependencies:
   ffi: ^2.1.2
 
   # ─── Kokoro TTS Package ──────────────────────────────────
-  kokoro_tts_flutter: ^0.2.0+1
+  # kokoro_tts_flutter: ^0.2.0+1
   # flutter_onnxruntime: ^1.0.0
+  kokoro_tts:
+    path: ./packages/kokoro_tts
+
 
   # ─── Audio & Background Playback ───────────────────────────
   audio_service: ^0.18.15
