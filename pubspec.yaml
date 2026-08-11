@@ -17,7 +17,7 @@ dependencies:
   # ─── Kokoro TTS Package ──────────────────────────────────
   # kokoro_tts_flutter: ^0.2.0+1
   # flutter_onnxruntime: ^1.0.0
-  kokoro_tts:
+  kokoro_tts_flutter:
     path: ./packages/kokoro_tts
 
 
