@@ -104,8 +104,10 @@ class CornigrumIsolateBridge {
       final config = KokoroConfig(
         modelPath: modelPath,
         voicesPath: effectiveVoicePath,
-        isInt8: effectiveIsInt8,
+        isInt8: true,
       );
+
+      debugPrint('[Bridge] modelPath: $modelPath, voicesPath: $effectiveVoicePath, isInt8: $effectiveIsInt8');
 
       _kokoro = Kokoro(config);
       await _kokoro!.initialize();
