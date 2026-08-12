@@ -10,7 +10,7 @@ class Voice {
   // متغير مؤقت لحفظ المتوسط المحسوب مرة واحدة
   Float32List? _cachedMeanVector;
 
-  const Voice({
+  Voice({
     required this.id,
     required this.name,
     required this.styleVectors,

@@ -17,7 +17,7 @@ final storageServiceProvider = Provider<StorageService>((ref) {
 
 class SettingsNotifier extends StateNotifier<SettingsModel> {
   final StorageService _storage;
-  final Ref _ref; //  إضافة الـ Ref كمتغير داخل الكلاس
+  final Ref _ref;
 
   SettingsNotifier(this._storage, this._ref) : super(const SettingsModel()) {
     _load();
