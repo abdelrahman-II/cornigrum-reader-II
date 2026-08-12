@@ -146,6 +146,16 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
       secondaryDelimiters: secondary,
     );
     await _storage.saveSettings(state);
+    
+    // Update bridge immediately
+    final bridge = ref.read(isolateBridgeProvider);
+    await bridge.setDelimiters(primary, secondary);
+    
+    // Re-parse current book if loaded
+    final readerState = ref.read(readerProvider);
+    if (readerState.currentBook != null) {
+      await ref.read(readerProvider.notifier).reloadCurrentBook();
+    }
   }
 
   Future<void> updateBatchMode(BatchMode mode, int size) async {

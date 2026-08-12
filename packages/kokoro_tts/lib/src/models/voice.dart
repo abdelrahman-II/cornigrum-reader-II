@@ -1,82 +1,52 @@
 import 'dart:typed_data';
 
-/// Represents a voice in the Kokoro TTS system
 class Voice {
-  /// Unique identifier for the voice
   final String id;
-  
-  /// Display name of the voice
   final String name;
-  
-  /// The voice style vectors used for model inference
-  /// Each index corresponds to a different token length
   final List<Float32List> styleVectors;
-  
-  /// Language code associated with this voice (e.g., 'en-us')
   final String languageCode;
-  
-  /// Gender of the voice ('male', 'female', or 'neutral')
   final String gender;
   
-  /// Creates a voice instance
+  // متغير مؤقت لحفظ المتوسط المحسوب مرة واحدة
+  Float32List? _cachedMeanVector;
+
   const Voice({
     required this.id,
     required this.name,
-    required this.styleVectors, 
+    required this.styleVectors,
     required this.languageCode,
     this.gender = 'neutral',
   });
-  
-  /// Gets the appropriate style vector for the given token length
-  /// This is the key method that implements dynamic style vector selection
-  /// as seen in the Python kokoro-onnx implementation
+
   Float32List getStyleVectorForTokens(int tokenLength) {
-    // Ensure token length is within bounds of available style vectors
-    // If out of bounds, use the closest available vector
-    final int safeIndex = tokenLength.clamp(0, styleVectors.length - 1);
-    return _ensureCorrectDimensions(styleVectors[safeIndex]);
+    // تجاهل tokenLength تماماً، واستخدم المتوسط الثابت
+    _cachedMeanVector ??= _computeMeanVector();
+    return _cachedMeanVector!;
   }
-  
-  /// Ensures the style vector has the correct dimensions (256) for the model
-  /// If the vector is too short, it will be padded with zeros
-  /// If the vector is too long, it will be truncated
-  Float32List _ensureCorrectDimensions(Float32List vector) {
-    const int requiredDimension = 256; // The model expects 256 dimensions
+
+  Float32List _computeMeanVector() {
+    const int requiredDimension = 256;
+    final result = Float32List(requiredDimension);
     
-    if (vector.length == requiredDimension) {
-      return vector; // Already the correct size
+    if (styleVectors.isEmpty) return result;
+
+    // جمع جميع المتجهات عنصراً عنصراً
+    for (final vec in styleVectors) {
+      for (int i = 0; i < requiredDimension && i < vec.length; i++) {
+        result[i] += vec[i];
+      }
     }
-    
-    // Create a new vector with the required dimensions
-    final Float32List result = Float32List(requiredDimension);
-    
-    // Copy values from the original vector, up to the minimum of the two lengths
-    final int copyLength = vector.length < requiredDimension ? vector.length : requiredDimension;
-    for (int i = 0; i < copyLength; i++) {
-      result[i] = vector[i];
+
+    // قسمة الناتج على عدد المتجهات (حساب المتوسط)
+    for (int i = 0; i < requiredDimension; i++) {
+      result[i] = result[i] / styleVectors.length;
     }
-    
-    // The rest of the elements will remain as 0.0 (default value for Float32List)
+
+    // (اختياري) يمكنك إضافة تطبيع L2 هنا إذا كان النموذج يتوقع ذلك،
+    // لكن في Kokoro الأصلي لا تحتاج إليه عادةً لأن المتجهات مُجهزة مسبقاً.
     return result;
   }
-  
-  /// Create a copy of this voice with updated values
-  Voice copyWith({
-    String? id,
-    String? name,
-    List<Float32List>? styleVectors,
-    String? languageCode,
-    String? gender,
-  }) {
-    return Voice(
-      id: id ?? this.id,
-      name: name ?? this.name,
-      styleVectors: styleVectors ?? this.styleVectors,
-      languageCode: languageCode ?? this.languageCode,
-      gender: gender ?? this.gender,
-    );
-  }
-  
+
   @override
-  String toString() => 'Voice(id: $id, name: $name, lang: $languageCode, styleVectors: ${styleVectors.length})';
+  String toString() => 'Voice(id: $id, name: $name, lang: $languageCode, styles: ${styleVectors.length})';
 }

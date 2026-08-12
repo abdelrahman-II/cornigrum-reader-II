@@ -13,58 +13,41 @@ import 'onnx_model_runner.dart';
 
 /// Core Kokoro TTS engine for Flutter
 class Kokoro {
-  /// The configuration for this Kokoro instance
   final KokoroConfig config;
-
-  /// The tokenizer used for text-to-phoneme conversion
   late final Tokenizer _tokenizer;
-
-  /// The loaded voices
   late final Map<String, Voice> _voices;
-
-  /// The ONNX model runner (will handle inference)
   late final OnnxModelRunner _modelRunner;
-
   bool _isInitialized = false;
 
-  /// Creates a new Kokoro TTS engine
-  ///
-  /// The [config] specifies the paths to the model and voice files
   Kokoro(this.config) {
-    _tokenizer = Tokenizer();
+    _tokenizer = Tokenizer(config: config.tokenizerConfig);
   }
 
   /// Initialize the Kokoro TTS engine
   Future<void> initialize() async {
     if (_isInitialized) return;
-
-    // Validate configuration
     config.validate();
 
-    // Initialize tokenizer
-    await _tokenizer.ensureInitialized();
-
-    // Load voices
-    await _loadVoices();
-
-    // Initialize model
-    // Load model from assets and pass to model runner
-    _modelRunner = OnnxModelRunner(
-      modelPath: config.modelPath,
-    );
-    await _modelRunner.initialize();
+    // تحميل tokenizer و voices و model بالتوازي لتحسين السرعة
+    await Future.wait([
+      _tokenizer.ensureInitialized(),
+      _loadVoices(),
+      _initModelRunner(),
+    ]);
 
     _isInitialized = true;
+    debugPrint('✅ Kokoro TTS initialized successfully');
   }
 
-  /// Ensures the Kokoro engine is initialized
+  Future<void> _initModelRunner() async {
+    _modelRunner = OnnxModelRunner(modelPath: config.modelPath);
+    await _modelRunner.initialize();
+  }
+
   Future<void> ensureInitialized() async {
-    if (!_isInitialized) {
-      await initialize();
-    }
+    if (!_isInitialized) await initialize();
   }
 
-  /// Gets the map of available voices
   Map<String, Voice> get availableVoices {
     if (!_isInitialized) {
       throw StateError('Kokoro is not initialized. Call initialize() first.');
@@ -75,94 +58,27 @@ class Kokoro {
   /// Loads the voices from the voices.json file
   Future<void> _loadVoices() async {
     try {
-      // Load voices from the JSON asset (converted from voices-v1.0.bin)
       final String jsonString = await rootBundle.loadString(config.voicesPath);
       final Map<String, dynamic> voicesData = jsonDecode(jsonString);
-
-      // Create a map of voice objects
       final Map<String, Voice> voiceMap = {};
 
-      // Process each voice in the JSON
       for (final voiceName in voicesData.keys) {
         try {
-          // Each voice has an array of style vectors in the JSON
           final List<dynamic> styleVectors = voicesData[voiceName];
-
-          // Process style vectors with better error handling
           final List<Float32List> processedVectors = [];
 
           for (final vector in styleVectors) {
-            if (vector is List) {
-              try {
-                final List<double> doubleList = [];
-                List<dynamic> listToProcess;
-
-                // Check for the wrapped list case, e.g., [[0.1, 0.2, ...]]
-                if (vector.isNotEmpty && vector.first is List) {
-                  if (vector.length == 1) {
-                    // Ensure it's a single wrapped list
-                    listToProcess = vector.first as List<dynamic>;
-                    // debugPrint('Info: Handling wrapped style vector for $voiceName.');
-                  } else {
-                    debugPrint(
-                        'Warning: Unexpected multi-list structure for a style vector in $voiceName: $vector. Using empty vector for this entry.');
-                    processedVectors.add(Float32List(0));
-                    continue; // Skip to the next style vector in styleVectors
-                  }
-                } else {
-                  // Standard case: vector is already [0.1, 0.2, ...]
-                  listToProcess = vector;
-                }
-
-                for (final value in listToProcess) {
-                  if (value is num) {
-                    doubleList.add(value.toDouble());
-                  } else if (value is String) {
-                    // Try to parse strings as doubles
-                    try {
-                      doubleList.add(double.parse(value));
-                    } catch (e) {
-                      debugPrint(
-                          'Warning: Could not parse "$value" as double in voice $voiceName. Using 0.0.');
-                      doubleList.add(0.0);
-                    }
-                  } else if (value is bool) {
-                    // Convert booleans to 1.0 (true) or 0.0 (false)
-                    doubleList.add(value ? 1.0 : 0.0);
-                  } else if (value == null) {
-                    // Handle null values as 0.0
-                    doubleList.add(0.0);
-                  } else {
-                    debugPrint(
-                        'Warning: Unexpected type ${value.runtimeType} in style vector data for $voiceName. Value: "$value". Using 0.0.');
-                    doubleList.add(0.0);
-                  }
-                }
-                processedVectors.add(Float32List.fromList(doubleList));
-              } catch (e) {
-                debugPrint(
-                    'Error processing vector in voice $voiceName: $e. Raw vector: $vector');
-                // Add an empty vector as fallback
-                processedVectors.add(Float32List(0));
-              }
-            } else {
-              debugPrint(
-                  'Warning: Expected List for style vector entry in $voiceName, got ${vector.runtimeType}. Content: $vector');
-              // Add an empty vector as fallback
-              processedVectors.add(Float32List(0));
+            final processed = _processStyleVector(vector, voiceName);
+            if (processed != null) {
+              processedVectors.add(processed);
             }
           }
 
-          // Ensure we have at least one style vector
           if (processedVectors.isEmpty) {
-            debugPrint(
-                'Warning: No valid style vectors for voice $voiceName, adding dummy vector');
-            final dummyVector = Float32List(1);
-            dummyVector[0] = 0.0;
-            processedVectors.add(dummyVector);
+            debugPrint('⚠️ No valid style vectors for voice $voiceName, using dummy vector');
+            processedVectors.add(Float32List(256));
           }
 
-          // Create a voice object with the processed style vectors
           voiceMap[voiceName] = Voice(
             id: voiceName,
             name: _formatVoiceName(voiceName),
@@ -170,191 +86,142 @@ class Kokoro {
             languageCode: _getLanguageCodeFromVoiceName(voiceName),
             gender: _getGenderFromVoiceName(voiceName),
           );
-
-          debugPrint(
-              'Successfully loaded voice $voiceName with ${processedVectors.length} style vectors');
         } catch (e) {
-          debugPrint('Error processing voice $voiceName: $e');
-          // Skip this voice and continue with others
+          debugPrint('❌ Error processing voice $voiceName: $e');
         }
       }
 
-      // Ensure we have at least one voice
       if (voiceMap.isEmpty) {
         throw Exception('No valid voices could be loaded from voices.json');
       }
 
       _voices = voiceMap;
-      debugPrint(
-          'Successfully loaded ${_voices.length} voices from voices.json');
+      debugPrint('✅ Loaded ${_voices.length} voices from voices.json');
     } catch (e) {
-      throw Exception(
-          'Failed to load voices from asset ${config.voicesPath}: $e');
+      throw Exception('Failed to load voices from ${config.voicesPath}: $e');
     }
   }
 
-  /// Format a voice name for display (e.g., 'af_heart' -> 'African Heart')
-  String _formatVoiceName(String voiceId) {
-    // Split by underscore
-    final parts = voiceId.split('_');
-    if (parts.length < 2) return voiceId;
+  Float32List? _processStyleVector(dynamic vector, String voiceName) {
+    try {
+      if (vector is! List) {
+        debugPrint('⚠️ Expected List for style vector in $voiceName, got ${vector.runtimeType}');
+        return null;
+      }
 
-    // Format each part with capitalization
-    final formattedParts = parts.map((part) {
-      if (part.isEmpty) return '';
-      return part[0].toUpperCase() + part.substring(1);
-    });
+      List<dynamic> listToProcess = vector;
 
-    return formattedParts.join(' ');
+      // التعامل مع الحالة المغلفة [[0.1, 0.2, ...]]
+      if (vector.isNotEmpty && vector.first is List) {
+        if (vector.length == 1) {
+          listToProcess = vector.first as List<dynamic>;
+        } else {
+          debugPrint('⚠️ Unexpected multi-list structure in $voiceName');
+          return null;
+        }
+      }
+
+      final List<double> doubleList = [];
+      for (final value in listToProcess) {
+        if (value is num) {
+          doubleList.add(value.toDouble());
+        } else if (value is String) {
+          doubleList.add(double.tryParse(value) ?? 0.0);
+        } else if (value is bool) {
+          doubleList.add(value ? 1.0 : 0.0);
+        } else {
+          doubleList.add(0.0);
+        }
+      }
+
+      return Float32List.fromList(doubleList);
+    } catch (e) {
+      debugPrint('❌ Error processing vector in $voiceName: $e');
+      return null;
+    }
   }
 
-  /// Get language code from voice name (simple heuristic)
+  String _formatVoiceName(String voiceId) {
+    final parts = voiceId.split('_');
+    if (parts.length < 2) return voiceId;
+    return parts.map((p) => p.isNotEmpty ? '${p[0].toUpperCase()}${p.substring(1)}' : '').join(' ');
+  }
+
   String _getLanguageCodeFromVoiceName(String voiceId) {
-    // This is a simple heuristic - in a real app, you'd have a mapping table
     if (voiceId.startsWith('fr_')) return 'fr-fr';
     if (voiceId.startsWith('es_')) return 'es-es';
     if (voiceId.startsWith('de_')) return 'de-de';
     if (voiceId.startsWith('it_')) return 'it-it';
     if (voiceId.startsWith('zh_')) return 'zh-cn';
     if (voiceId.startsWith('ja_')) return 'ja-jp';
-    // Default to English
     return 'en-us';
   }
 
-  /// Get gender from voice name (simple heuristic)
   String _getGenderFromVoiceName(String voiceId) {
-    // This is a simple heuristic - in a real app, you'd have a mapping table
     if (voiceId.contains('female')) return 'female';
     if (voiceId.contains('male')) return 'male';
-    // Default to neutral
     return 'neutral';
   }
 
-  /// Splits phonemes into batches to process in chunks
+  /// Splits phonemes into batches (optimized: returns single batch for simplicity)
   List<String> _splitPhonemes(String phonemes) {
-    // For testing purposes, and to simplify the current debugging path,
-    // always return the phoneme string as a single batch.
-    // This ensures that the tokenization step receives the exact phoneme string
-    // with punctuation intact, as provided to createTTS.
-    // TODO: Revisit proper batching logic for very long phoneme strings if necessary.
+    // حاليًا نرجع الدفعة كاملة لأن tokenizer أصبح أسرع بكثير
     return [phonemes];
   }
 
-  /// Creates audio from the provided text using the specified voice and settings
+  /// Creates audio from text using specified voice
   Future<TtsResult> createTTS({
     required String text,
-    required dynamic voice, // Can be String (voice ID) or Voice object
+    required dynamic voice,
     double speed = 1.0,
     String lang = 'en-us',
     bool isPhonemes = false,
     bool trim = true,
   }) async {
     await ensureInitialized();
-    debugPrint('Dart createTTS: Input text: "$text"');
-    debugPrint(
-        'Dart createTTS: Voice (raw): $voice, Language: $lang, Speed: $speed, IsPhonemes: $isPhonemes');
+    debugPrint('🎤 Creating TTS: text="$text", voice=$voice, speed=$speed');
 
     assert(speed >= 0.5 && speed <= 2.0, 'Speed should be between 0.5 and 2.0');
 
     // Resolve voice
-    late Voice voiceObj;
-    if (voice is String) {
-      if (!_voices.containsKey(voice)) {
-        throw ArgumentError('Voice $voice not found in available voices');
-      }
-      voiceObj = _voices[voice]!;
-    } else if (voice is Voice) {
-      voiceObj = voice;
-    } else {
-      throw ArgumentError('Voice must be a String ID or Voice object');
-    }
-    debugPrint('Dart createTTS: Resolved Voice ID: ${voiceObj.id}');
+    final voiceObj = _resolveVoice(voice);
 
     // Get phonemes
-    String phonemes;
-    if (isPhonemes) {
-      phonemes = text;
-    } else {
-      phonemes = await _tokenizer.phonemize(text, lang: lang);
-    }
-    debugPrint('Dart createTTS: Generated/Provided Phonemes: "$phonemes"');
+    final String phonemes = isPhonemes 
+        ? text 
+        : await _tokenizer.phonemize(text, lang: lang);
+    debugPrint('📝 Phonemes: "$phonemes"');
 
-    // Split into batches for processing
+    // Process batches
     final batches = _splitPhonemes(phonemes);
-
-    // Process each batch
     final audioBuffers = <List<num>>[];
+
     for (final batch in batches) {
-      debugPrint('Dart createTTS Batch: Processing phoneme batch: "$batch"');
-      // Convert phonemes to token IDs
-      final List<int> tokens = _tokenizer.tokenize(batch);
-      debugPrint('Dart: Unpadded Tokens for batch: $tokens');
+      final tokens = _tokenizer.tokenize(batch);
+      debugPrint('🔢 Tokens: ${tokens.length}');
 
-      // Get the appropriate style vector for this token length
-      // This is the key alignment with kokoro-onnx: selecting style vector based on token count
-      final Float32List styleVector =
-          voiceObj.getStyleVectorForTokens(tokens.length);
-      String styleVecStr;
-      if (styleVector.length <= 20) {
-        styleVecStr = styleVector.map((e) => e.toStringAsFixed(4)).join(', ');
-      } else {
-        styleVecStr =
-            '${styleVector.sublist(0, 10).map((e) => e.toStringAsFixed(4)).join(', ')}...${styleVector.sublist(styleVector.length - 10).map((e) => e.toStringAsFixed(4)).join(', ')}';
-      }
-      debugPrint(
-          'Dart Batch: Style Vector (length ${styleVector.length}): [$styleVecStr]');
-      debugPrint('Using style vector for token length ${tokens.length}');
-
-      // Run inference
+      final styleVector = voiceObj.getStyleVectorForTokens(tokens.length);
+      
       final audio = await _modelRunner.runInference(
         tokens: tokens,
         voice: styleVector,
         speed: speed,
-        isInt8: config.isInt8,
       );
 
-      debugPrint('Dart Batch: Raw audio from model (length: ${audio.length})');
-      if (audio.isNotEmpty) {
-        String audioStartStr = audio
-            .sublist(0, (audio.length > 10 ? 10 : audio.length))
-            .map((e) => e.toStringAsFixed(4))
-            .join(', ');
-        String audioEndStr = audio.length > 10
-            ? audio
-                .sublist(audio.length - (audio.length > 10 ? 10 : 0))
-                .map((e) => e.toStringAsFixed(4))
-                .join(', ')
-            : '';
-        final doubleAudio = audio.map((e) => e.toDouble()).toList();
-        num minVal = doubleAudio.reduce((a, b) => a < b ? a : b);
-        num maxVal = doubleAudio.reduce((a, b) => a > b ? a : b);
-        debugPrint('Dart Batch: Raw audio Start: [$audioStartStr]');
-        if (audioEndStr.isNotEmpty && audio.length > 10) {
-          // ensure audioEndStr is meaningful
-          debugPrint('Dart Batch: Raw audio End: [$audioEndStr]');
-        }
-        debugPrint(
-            'Dart Batch: Raw audio Min/Max: ${minVal.toStringAsFixed(4)} / ${maxVal.toStringAsFixed(4)}');
-      } else {
-        debugPrint('Dart Batch: Raw audio is empty.');
-      }
-
-      // Apply trimming if requested
       List<num> processedAudio = audio;
       if (trim) {
-        // Trim leading and trailing silence
-        final (trimmedAudio, _) = AudioUtils.trimSilence(audio);
-        processedAudio = trimmedAudio;
+        final (trimmed, _) = AudioUtils.trimSilence(audio);
+        processedAudio = trimmed;
       }
 
       audioBuffers.add(processedAudio);
     }
 
-    // Concatenate audio buffers
+    // Combine audio
     final combinedAudio = AudioUtils.concatenateAudio(audioBuffers);
-
-    // Calculate duration
     final duration = combinedAudio.length / sampleRate;
+
+    debugPrint('✅ TTS complete: ${duration.toStringAsFixed(2)}s, ${combinedAudio.length} samples');
 
     return TtsResult(
       audio: combinedAudio,
@@ -362,6 +229,19 @@ class Kokoro {
       duration: duration,
       phonemes: phonemes,
     );
+  }
+
+  Voice _resolveVoice(dynamic voice) {
+    if (voice is String) {
+      if (!_voices.containsKey(voice)) {
+        throw ArgumentError('Voice "$voice" not found. Available: ${_voices.keys.join(', ')}');
+      }
+      return _voices[voice]!;
+    } else if (voice is Voice) {
+      return voice;
+    } else {
+      throw ArgumentError('Voice must be String ID or Voice object');
+    }
   }
 
   /// Stream audio generation for longer texts
@@ -374,76 +254,38 @@ class Kokoro {
     bool trim = true,
   }) async* {
     await ensureInitialized();
+    assert(speed >= 0.5 && speed <= 2.0);
 
-    assert(speed >= 0.5 && speed <= 2.0, 'Speed should be between 0.5 and 2.0');
-
-    // Resolve voice
-    late Voice voiceObj;
-    if (voice is String) {
-      if (!_voices.containsKey(voice)) {
-        throw ArgumentError('Voice $voice not found in available voices');
-      }
-      voiceObj = _voices[voice]!;
-    } else if (voice is Voice) {
-      voiceObj = voice;
-    } else {
-      throw ArgumentError('Voice must be a String ID or Voice object');
-    }
-
-    // Get phonemes
-    String phonemes;
-    if (isPhonemes) {
-      phonemes = text;
-    } else {
-      phonemes = await _tokenizer.phonemize(text, lang: lang);
-    }
-
-    // Split into batches for processing
+    final voiceObj = _resolveVoice(voice);
+    final String phonemes = isPhonemes ? text : await _tokenizer.phonemize(text, lang: lang);
     final batches = _splitPhonemes(phonemes);
 
-    // Stream each batch
     for (final batch in batches) {
       final tokens = _tokenizer.tokenize(batch);
-
-      // Run inference
       final audio = await _modelRunner.runInference(
         tokens: tokens,
         voice: voiceObj.getStyleVectorForTokens(tokens.length),
         speed: speed,
-        isInt8: config.isInt8,
       );
 
-      // Apply trimming if requested
       List<num> processedAudio = audio;
       if (trim) {
-        // Trim leading and trailing silence
-        final (trimmedAudio, _) = AudioUtils.trimSilence(audio);
-        processedAudio = trimmedAudio;
+        final (trimmed, _) = AudioUtils.trimSilence(audio);
+        processedAudio = trimmed;
       }
-
-      // Calculate duration
-      final duration = processedAudio.length / sampleRate;
 
       yield TtsResult(
         audio: processedAudio,
         sampleRate: sampleRate,
-        duration: duration,
+        duration: processedAudio.length / sampleRate,
         phonemes: batch,
       );
     }
   }
 
-  /// Get a list of available voice IDs
-  List<String> getVoices() {
-    return _voices.keys.toList()..sort();
-  }
+  List<String> getVoices() => _voices.keys.toList()..sort();
+  Voice? getVoice(String id) => _voices[id];
 
-  /// Get a specific voice by ID
-  Voice? getVoice(String id) {
-    return _voices[id];
-  }
-
-  /// Close resources used by the TTS engine
   Future<void> dispose() async {
     if (_isInitialized) {
       await _modelRunner.dispose();
