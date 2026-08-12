@@ -7,14 +7,19 @@ import '../models/settings_model.dart';
 import '../services/storage_service.dart';
 import '../models/voice.dart';
 
+
+import 'isolate_bridge_provider.dart';
+import 'reader_provider.dart';
+
 final storageServiceProvider = Provider<StorageService>((ref) {
   throw UnimplementedError('storageServiceProvider must be overridden in ProviderScope');
 });
 
 class SettingsNotifier extends StateNotifier<SettingsModel> {
   final StorageService _storage;
+  final Ref _ref; //  إضافة الـ Ref كمتغير داخل الكلاس
 
-  SettingsNotifier(this._storage) : super(const SettingsModel()) {
+  SettingsNotifier(this._storage, this._ref) : super(const SettingsModel()) {
     _load();
   }
 
@@ -144,14 +149,13 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
     );
     await _storage.saveSettings(state);
 
-    // ✅ Immediately update the bridge with new delimiters
-    final bridge = ref.read(isolateBridgeProvider);
+    //  تعديل استخدام ref إلى _ref واستدعاء الـ Providers المصدرة
+    final bridge = _ref.read(isolateBridgeProvider);
     await bridge.setDelimiters(primary, secondary);
 
-    // ✅ Re-parse current book if loaded to reflect changes
-    final readerState = ref.read(readerProvider);
+    final readerState = _ref.read(readerProvider);
     if (readerState.currentBook != null) {
-      await ref.read(readerProvider.notifier).reloadCurrentBook();
+      await _ref.read(readerProvider.notifier).reloadCurrentBook();
     }
   }
 
@@ -179,5 +183,5 @@ class SettingsNotifier extends StateNotifier<SettingsModel> {
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsModel>((ref) {
   final storage = ref.watch(storageServiceProvider);
-  return SettingsNotifier(storage);
+  return SettingsNotifier(storage, ref);
 });
