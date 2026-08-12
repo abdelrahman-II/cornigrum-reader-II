@@ -17,7 +17,7 @@ class OnnxModelRunner {
 
   OnnxModelRunner({required this.modelPath});
 
-  /// Initializes and loads the user's external ONNX file into memory once.
+  /// Initializes and loads the user's external ONNX file, then validates it.
   Future<void> initialize() async {
     if (_isInitialized) return;
 
@@ -46,23 +46,67 @@ class OnnxModelRunner {
         );
       }
 
-      // 3. Cache session metadata to eliminate bridge overhead during inference
+      // 3. Cache session metadata
       _cachedInputNames = List<String>.from(_session!.inputNames);
       _cachedOutputNames = List<String>.from(_session!.outputNames);
 
-      if (_cachedInputNames.length < 3) {
-        throw Exception(
-          'Incompatible model format: requires at least 3 inputs (tokens/input_ids, style, speed).',
-        );
-      }
+      // 4. Validate model structure
+      await _validateModel();
 
-      _useInputIds = _cachedInputNames.contains('input_ids');
       _isInitialized = true;
-      
-      debugPrint('User model successfully loaded from: $modelPath');
+      debugPrint('User model successfully loaded and validated from: $modelPath');
     } catch (e) {
       await dispose();
       throw Exception('Failed to initialize user model: $e');
+    }
+  }
+
+  /// Validates the model's inputs, outputs, and performs a dummy inference.
+  Future<void> _validateModel() async {
+    if (_session == null) {
+      throw Exception('Session not loaded');
+    }
+
+    // Check number of inputs
+    if (_cachedInputNames.length < 3) {
+      throw Exception(
+        'Incompatible model format: requires at least 3 inputs (tokens/input_ids, style, speed). '
+        'Found ${_cachedInputNames.length} inputs: ${_cachedInputNames.join(', ')}',
+      );
+    }
+
+    // Check for known input names or fallback to positional mapping
+    const expectedInputs = ['input_ids', 'style', 'speed'];
+    bool hasNamedInputs = expectedInputs.every((name) => _cachedInputNames.contains(name));
+    if (!hasNamedInputs) {
+      // If not named, we assume they are in order: tokens, style, speed
+      // This is a common pattern, but we warn.
+      debugPrint('Model inputs do not include standard names. Assuming order: tokens, style, speed.');
+      _useInputIds = false; // use positional mapping
+    } else {
+      _useInputIds = true;
+    }
+
+    // Check for outputs
+    if (_cachedOutputNames.isEmpty) {
+      throw Exception('Model has no output tensors.');
+    }
+
+    // Perform a dummy inference to validate shapes and execution
+    try {
+      final dummyTokens = Int64List(10); // 1 token + padding
+      final dummyVoice = Float32List(256);
+      final result = await runInference(
+        tokens: [1, 2, 3, 4, 5], // dummy tokens
+        voice: dummyVoice,
+        speed: 1.0,
+      );
+      if (result.isEmpty) {
+        throw Exception('Model inference returned empty result.');
+      }
+      debugPrint('Dummy inference succeeded, output length: ${result.length}');
+    } catch (e) {
+      throw Exception('Model validation inference failed: $e');
     }
   }
 
@@ -108,6 +152,7 @@ class OnnxModelRunner {
         inputs['style'] = voiceTensor;
         inputs['speed'] = speedTensor;
       } else {
+        // Positional mapping: assume order tokens, style, speed
         inputs[_cachedInputNames[0]] = tokenTensor;
         inputs[_cachedInputNames[1]] = voiceTensor;
         inputs[_cachedInputNames[2]] = speedTensor;
@@ -143,7 +188,7 @@ class OnnxModelRunner {
         await tensor.dispose();
       }
       if (outputs != null) {
-        for (final tensor in outputs.values) {
+        for (final tensor in outputs!.values) {
           await tensor.dispose();
         }
       }

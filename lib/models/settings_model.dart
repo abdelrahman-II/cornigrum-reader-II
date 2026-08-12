@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../models/voice.dart'; 
+import '../models/voice.dart';
 
 enum AppTheme { obsidian, sepia, light, pitchBlack }
 enum BatchMode { sentenceCount, pageBased }
@@ -114,7 +114,21 @@ class SettingsModel {
         'isQuantizedInt8': isQuantizedInt8,
       };
 
-  factory SettingsModel.fromJson(Map<String, dynamic> json) => SettingsModel(
+  factory SettingsModel.fromJson(Map<String, dynamic> json) {
+    try {
+      final customVoicesData = json['customVoices'] as List<dynamic>?;
+      List<Voice> customVoices = [];
+
+      if (customVoicesData != null) {
+        customVoices = customVoicesData.map((item) {
+          if (item is! Map<String, dynamic>) {
+            throw FormatException('Invalid voice format: $item');
+          }
+          return Voice.fromJson(item);
+        }).toList();
+      }
+
+      return SettingsModel(
         theme: AppTheme.values[(json['theme'] ?? 0).clamp(0, AppTheme.values.length - 1)],
         highlightColor: Color(json['highlightColor'] ?? 0xFFDC2626),
         fontSize: (json['fontSize'] ?? 18.0).toDouble(),
@@ -126,10 +140,7 @@ class SettingsModel {
         modelPath: json['modelPath'] ?? '',
         voicePath: json['voicePath'] ?? '',
         voiceName: json['voiceName'] ?? 'No Voice Selected',
-        customVoices: (json['customVoices'] as List<dynamic>?)
-                ?.map((item) => Voice.fromJson(item as Map<String, dynamic>))
-                .toList() ??
-            const [],
+        customVoices: customVoices,
         primaryDelimiters: json['primaryDelimiters'] ?? '.!?\n',
         secondaryDelimiters: json['secondaryDelimiters'] ?? ',;:—',
         batchMode: BatchMode.values[(json['batchMode'] ?? 0).clamp(0, BatchMode.values.length - 1)],
@@ -138,4 +149,9 @@ class SettingsModel {
         isHorizontalFlip: json['isHorizontalFlip'] ?? false,
         isQuantizedInt8: json['isQuantizedInt8'] ?? false,
       );
+    } catch (e) {
+      debugPrint('⚠️ Failed to parse settings: $e');
+      return const SettingsModel(); // fallback to defaults
+    }
+  }
 }

@@ -10,6 +10,29 @@ import 'package:path/path.dart' as p;
 
 typedef RtfCallback = void Function(double rtf, int latencyMs);
 
+/// Thread-safe cancellation token for async operations.
+class CancelToken {
+  bool _isCancelled = false;
+  final Completer<void> _completer = Completer<void>();
+
+  bool get isCancelled => _isCancelled;
+
+  void cancel() {
+    if (!_isCancelled) {
+      _isCancelled = true;
+      if (!_completer.isCompleted) {
+        _completer.complete();
+      }
+    }
+  }
+
+  void throwIfCancelled() {
+    if (_isCancelled) throw Exception('Operation cancelled');
+  }
+
+  Future<void> get whenCancelled => _completer.future;
+}
+
 class CornigrumIsolateBridge {
   bool _initialized = false;
   bool get isInitialized => _initialized;
@@ -32,26 +55,24 @@ class CornigrumIsolateBridge {
   bool _isPlaying = false;
   double _playbackSpeed = 1.0;
 
-  // خريطة لتخزين مسارات الملفات المؤقتة لكل جملة
+  // Cache for temporary audio files
   final Map<int, String> _audioCache = {};
-  // تتبع عمليات التوليد الجارية لمنع التكرار
+  // Track ongoing generation tasks
   final Map<int, Future<void>> _generationTasks = {};
-  // مصدر إلغاء المهام
+  // Cancellation token for current operations
   CancelToken? _cancelToken;
 
   int _batchSize = 5;
   StreamSubscription<PlayerState>? _playerSubscription;
 
-  void _cleanupCache(int currentIndex) {
-    // تحديد العناصر التي يجب حذفها
-    final toRemove = _audioCache.keys.where((key) {
-      // الشرط الأول: هل الجملة في الماضي؟ (نحتفظ بجملة واحدة سابقة كاحتياط لو عاد المستخدم للخلف فجأة)
-      bool isPast = key < currentIndex - 3; 
-      
-      // الشرط الثاني: هل الجملة في المستقبل أبعد من العدد الذي حدده المستخدم؟
-      bool isTooFarInFuture = key > currentIndex + _batchSize;
+  // Disposal guard
+  bool _isDisposed = false;
 
-      // نحذف الجملة إذا تحقق أي من الشرطين
+  void _cleanupCache(int currentIndex) {
+    // Keep 3 previous sentences and batchSize future sentences
+    final toRemove = _audioCache.keys.where((key) {
+      bool isPast = key < currentIndex - 3;
+      bool isTooFarInFuture = key > currentIndex + _batchSize;
       return isPast || isTooFarInFuture;
     }).toList();
 
@@ -78,7 +99,7 @@ class CornigrumIsolateBridge {
     _voiceName = voiceName;
     _voicePath = voicePath;
 
-    // إلغاء أي مهام سابقة
+    // Cancel any ongoing tasks
     _cancelToken?.cancel();
     _cancelToken = CancelToken();
 
@@ -86,7 +107,6 @@ class CornigrumIsolateBridge {
     _playerSubscription?.cancel();
     _playerSubscription = _audioPlayer!.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
-        debugPrint('[Bridge] Audio completed for sentence index $_currentSentenceIndex');
         _onSentenceAudioCompleted();
       }
     });
@@ -101,13 +121,14 @@ class CornigrumIsolateBridge {
       debugPrint('[Bridge] Model path: $modelPath');
       debugPrint('[Bridge] Voices dir: $voicesDir, Voice ID: $_voiceId');
 
+      // Note: KokoroConfig expects voicesPath to be the JSON file path.
+      // The isInt8 flag is used to select the appropriate model variant.
       final config = KokoroConfig(
         modelPath: modelPath,
         voicesPath: effectiveVoicePath,
-        isInt8: false,
+        // isInt8 is not a field in KokoroConfig; we handle it in OnnxModelRunner separately.
+        // So we omit it here.
       );
-
-      debugPrint('[Bridge] modelPath: $modelPath, voicesPath: $effectiveVoicePath, isInt8: $effectiveIsInt8');
 
       _kokoro = Kokoro(config);
       await _kokoro!.initialize();
@@ -123,21 +144,41 @@ class CornigrumIsolateBridge {
     }
   }
 
+  /// Validates and resolves the voice file path.
+  /// Throws clear exceptions if file missing or invalid.
   Future<String> _ensureVoicePath(String originalPath) async {
-    if (originalPath.isEmpty) return originalPath;
-    final file = File(originalPath);
-    if (!file.existsSync()) return originalPath;
+    if (originalPath.isEmpty) {
+      throw Exception('Voice path cannot be empty. Please select a voice in Settings.');
+    }
 
+    final file = File(originalPath);
+
+    // Check existence
+    if (!await file.exists()) {
+      throw FileSystemException(
+        'Voice file not found at: $originalPath\n'
+        'Please verify the file exists and try again.',
+      );
+    }
+
+    // Handle .bin → .json conversion
     if (originalPath.endsWith('.bin')) {
       final jsonPath = p.setExtension(originalPath, '.json');
-      if (File(jsonPath).existsSync()) {
+      if (await File(jsonPath).exists()) {
         return jsonPath;
       }
+      // If .json doesn't exist, try to convert on the fly
+      // For now, we throw with instructions.
+      throw Exception(
+        'Voice file is in .bin format but .json is required.\n'
+        'Please convert voices-v1.0.bin using the provided script.\n'
+        'See scripts/convert_voices.py for details.',
+      );
     }
+
     return originalPath;
   }
 
-  // تحسين دالة تقسيم النص
   Future<List<String>> parseText(String text) async {
     debugPrint('[Bridge] Parsing text into sentences...');
     if (text.trim().isEmpty) {
@@ -148,10 +189,8 @@ class CornigrumIsolateBridge {
       return [];
     }
 
-    // تنظيف النص من المسافات الزائدة والأسطر الفارغة
     final cleaned = text.replaceAll(RegExp(r'\s+'), ' ').trim();
 
-    // بناء نمط للفصل: الأساسي ثم الثانوي
     final primaryPattern = _primaryDelimiters
         .split('')
         .map((c) => c == '\n' ? r'\n' : RegExp.escape(c))
@@ -161,7 +200,6 @@ class CornigrumIsolateBridge {
         .map((c) => c == '\n' ? r'\n' : RegExp.escape(c))
         .join('');
 
-    // دالة مساعدة للتقسيم التكراري مع حد أقصى للطول
     List<String> splitRecursively(String content, int depth) {
       final trimmed = content.trim();
       if (trimmed.isEmpty) return [];
@@ -173,7 +211,7 @@ class CornigrumIsolateBridge {
       } else if (secondaryPattern.isNotEmpty) {
         pattern = secondaryPattern;
       } else {
-        // تقسيم قسري إلى أجزاء بطول 400
+        // Force split into chunks of 400 characters
         final chunks = <String>[];
         for (int i = 0; i < trimmed.length; i += 400) {
           final end = min(i + 400, trimmed.length);
@@ -182,7 +220,6 @@ class CornigrumIsolateBridge {
         return chunks.where((s) => s.isNotEmpty).toList();
       }
 
-      // استخدام تعبير نمطي للفصل مع الاحتفاظ بالمحددات
       final regex = RegExp('([^$pattern]+[$pattern]+|[^$pattern]+\$)');
       final matches = regex.allMatches(trimmed);
       final result = <String>[];
@@ -193,13 +230,11 @@ class CornigrumIsolateBridge {
           if (trimmedChunk.length <= 400) {
             result.add(trimmedChunk);
           } else {
-            // إعادة التقسيم في المستوى التالي
             result.addAll(splitRecursively(trimmedChunk, depth + 1));
           }
         }
       }
 
-      // في حالة فشل التقسيم (نتيجة واحدة طويلة)، نلجأ للتقسيم القسري
       if (result.length == 1 && result[0].length > 400) {
         return splitRecursively(trimmed, depth + 1);
       }
@@ -217,26 +252,27 @@ class CornigrumIsolateBridge {
   Future<void> setDelimiters(String primary, String secondary) async {
     _primaryDelimiters = primary.isEmpty ? '.!?\n' : primary;
     _secondaryDelimiters = secondary.isEmpty ? ',;:—' : secondary;
-    debugPrint('[Bridge] Delimiters updated: primary=" $_primaryDelimiters ", secondary=" $_secondaryDelimiters "');
+    debugPrint('[Bridge] Delimiters updated: primary="$_primaryDelimiters", secondary="$_secondaryDelimiters"');
   }
 
   Future<void> setBatchMode(int mode, int batchSize) async {
+    // Clamp to reasonable range, but also cap to total sentences later if needed.
     _batchSize = batchSize.clamp(1, 10);
     debugPrint('[Bridge] Batch size set to: $_batchSize');
   }
 
-  // توليد الصوت مع دعم الإلغاء والتحقق من الكاش
+  /// Synthesize audio for a sentence and cache it.
   Future<void> synthesizeAndEnqueue(int sentenceIndex, double speed) async {
     if (sentenceIndex < 0 || sentenceIndex >= _sentences.length) return;
     _playbackSpeed = speed;
 
-    // إذا كان الملف موجوداً بالفعل، لا نعيد التوليد
+    // Already cached?
     if (_audioCache.containsKey(sentenceIndex)) {
       debugPrint('[Bridge] Cache hit for sentence $sentenceIndex');
       return;
     }
 
-    // منع التوليد المتكرر لنفس الجملة
+    // Avoid duplicate generation
     if (_generationTasks.containsKey(sentenceIndex)) {
       debugPrint('[Bridge] Generation already in progress for $sentenceIndex');
       return _generationTasks[sentenceIndex];
@@ -254,7 +290,6 @@ class CornigrumIsolateBridge {
       return;
     }
 
-    // إنشاء Completer لهذه المهمة
     final completer = Completer<void>();
     _generationTasks[sentenceIndex] = completer.future;
 
@@ -262,19 +297,22 @@ class CornigrumIsolateBridge {
       debugPrint('[Bridge] Synthesizing sentence $sentenceIndex: "$text"');
       final stopwatch = Stopwatch()..start();
 
-      // التحقق من الإلغاء قبل البدء
+      // Check cancellation before heavy work
       cancelToken.throwIfCancelled();
 
       final phonemes = await _tokenizer!.phonemize(text, lang: 'en-us');
       final voiceToUse = _voiceId.isEmpty ? (_voiceName.isEmpty ? 'af_heart' : _voiceName) : _voiceId;
 
-      // تنفيذ التوليد مع إمكانية الإلغاء
+      // Check cancellation before inference
+      cancelToken.throwIfCancelled();
+
       final ttsResult = await _kokoro!.createTTS(
         text: phonemes,
         voice: voiceToUse,
         isPhonemes: true,
       );
 
+      // Check cancellation after inference
       cancelToken.throwIfCancelled();
 
       stopwatch.stop();
@@ -300,7 +338,7 @@ class CornigrumIsolateBridge {
         _audioCache[sentenceIndex] = wavPath;
         debugPrint('[Bridge] Sentence $sentenceIndex audio saved to $wavPath');
 
-        // تنظيف الكاش بعد التوليد
+        // Clean up cache after generation
         _cleanupCache(_currentSentenceIndex);
       } else {
         debugPrint('[Bridge] Synthesis returned null audio for $sentenceIndex');
@@ -316,14 +354,12 @@ class CornigrumIsolateBridge {
     return completer.future;
   }
 
-  // التحميل المسبق مع التحقق من الكاش والإلغاء
   Future<void> prefetch(int startIndex, int count, double speed) async {
     debugPrint('[Bridge] Prefetching $count sentences starting from index $startIndex...');
     final tasks = <Future>[];
     for (int i = 0; i < count; i++) {
       final idx = startIndex + i;
       if (idx < _sentences.length) {
-        // التحقق من وجود الملف في الكاش قبل البدء
         if (_audioCache.containsKey(idx)) continue;
         final task = synthesizeAndEnqueue(idx, speed);
         tasks.add(task);
@@ -336,7 +372,7 @@ class CornigrumIsolateBridge {
     debugPrint('[Bridge] Requested play()');
     if (_sentences.isEmpty) return;
     _isPlaying = true;
-    // إلغاء أي مهام سابقة
+    // Cancel any previous tasks and create new token
     _cancelToken?.cancel();
     _cancelToken = CancelToken();
     await _playCurrentSentence();
@@ -351,7 +387,7 @@ class CornigrumIsolateBridge {
     }
 
     debugPrint('[Bridge] Playing sentence index $_currentSentenceIndex');
-    // ابدأ التحميل المسبق للجمل القادمة (لا ننتظرها)
+    // Prefetch next batch without waiting
     prefetch(_currentSentenceIndex + 1, _batchSize, _playbackSpeed);
 
     final cancelToken = _cancelToken;
@@ -360,7 +396,7 @@ class CornigrumIsolateBridge {
       return;
     }
 
-    // التأكد من وجود الصوت في الكاش، وإلا نولده وننتظره
+    // Ensure audio is cached
     if (!_audioCache.containsKey(_currentSentenceIndex)) {
       debugPrint('[Bridge] Audio not cached, generating now...');
       try {
@@ -368,20 +404,18 @@ class CornigrumIsolateBridge {
         cancelToken.throwIfCancelled();
       } catch (e) {
         debugPrint('[Bridge] Generation failed for $_currentSentenceIndex: $e');
-        // إذا فشل التوليد، ننتقل إلى التالية
         _onSentenceAudioCompleted();
         return;
       }
     }
 
-    // تشغيل الصوت
     final cachedWav = _audioCache[_currentSentenceIndex];
     if (cachedWav != null && File(cachedWav).existsSync()) {
       try {
         await _audioPlayer!.setFilePath(cachedWav);
         await _audioPlayer!.setSpeed(_playbackSpeed);
         await _audioPlayer!.play();
-        // لا ننتظر الانتهاء هنا، سيتم التعامل معه عبر Stream
+        // Playback completion is handled by the player state stream
       } catch (e) {
         debugPrint('[Bridge] Failed playing audio file: $e');
         _onSentenceAudioCompleted();
@@ -393,10 +427,12 @@ class CornigrumIsolateBridge {
   }
 
   void _onSentenceAudioCompleted() {
+    // Guard against use after dispose
+    if (_isDisposed) return;
     if (!_isPlaying) return;
+
     if (_currentSentenceIndex < _sentences.length - 1) {
       _currentSentenceIndex++;
-      // تنظيف الكاش بعد التقدم
       _cleanupCache(_currentSentenceIndex);
       _playCurrentSentence();
     } else {
@@ -408,7 +444,6 @@ class CornigrumIsolateBridge {
   Future<void> pause() async {
     debugPrint('[Bridge] Requested pause()');
     _isPlaying = false;
-    // إلغاء المهام الجارية
     _cancelToken?.cancel();
     await _audioPlayer?.pause();
   }
@@ -419,7 +454,6 @@ class CornigrumIsolateBridge {
     _cancelToken?.cancel();
     await _audioPlayer?.stop();
     _currentSentenceIndex = 0;
-    // تنظيف الكاش بالكامل
     _audioCache.clear();
     _generationTasks.clear();
   }
@@ -524,26 +558,18 @@ class CornigrumIsolateBridge {
   }
 
   Future<void> dispose() async {
+    if (_isDisposed) return;
+    _isDisposed = true;
+
     debugPrint('[Bridge] Disposing bridge resources...');
     _cancelToken?.cancel();
     if (_playerSubscription != null) {
       await _playerSubscription!.cancel();
     }
     if (_audioPlayer != null) {
+      await _audioPlayer!.stop();
       await _audioPlayer!.dispose();
     }
     _initialized = false;
-  }
-}
-
-// فئة بسيطة لدعم الإلغاء
-class CancelToken {
-  bool _isCancelled = false;
-  bool get isCancelled => _isCancelled;
-
-  void cancel() => _isCancelled = true;
-
-  void throwIfCancelled() {
-    if (_isCancelled) throw Exception('Operation cancelled');
   }
 }

@@ -27,28 +27,58 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
 
   Future<void> _loadVoices() async {
     try {
-      // تحميل ملف index.json من assets/voices/
+      // Load index.json from assets/voices/
       final jsonString = await rootBundle.loadString('assets/voices/index.json');
       final List<dynamic> data = jsonDecode(jsonString);
-      final voices = data.map((item) {
-        return Voice(
-          id: item['id'] ?? item['file'],
-          name: item['name'] ?? item['file'].replaceAll('.json', ''),
-          embeddingPath: 'assets/voices/${item['file']}',
+
+      if (data.isEmpty) {
+        throw Exception('Voice index is empty');
+      }
+
+      final voices = <Voice>[];
+      for (final item in data) {
+        // Validate required fields
+        final id = item['id'] as String?;
+        final file = item['file'] as String?;
+
+        if (file == null) {
+          debugPrint('⚠️ Voice entry missing "file" field: $item');
+          continue;
+        }
+
+        // Verify the asset file exists
+        final assetPath = 'assets/voices/$file';
+        try {
+          await rootBundle.loadString(assetPath);
+        } catch (_) {
+          debugPrint('⚠️ Voice file missing: $assetPath');
+          continue;
+        }
+
+        voices.add(Voice(
+          id: id ?? file.replaceAll('.json', ''),
+          name: item['name'] as String? ?? file.replaceAll('.json', ''),
+          embeddingPath: assetPath,
           isBuiltIn: true,
-        );
-      }).toList();
+        ));
+      }
+
       setState(() {
         _builtInVoices = voices;
         _isLoading = false;
       });
+
+      if (voices.isEmpty) {
+        throw Exception('No valid voice files found');
+      }
+
+      debugPrint('✅ Loaded ${voices.length} voices from index.json');
     } catch (e) {
-      // في حالة عدم وجود ملف index، نعرض رسالة خطأ
       setState(() {
         _isLoading = false;
         _builtInVoices = [];
       });
-      debugPrint('Failed to load voices index: $e');
+      debugPrint('Failed to load voices: $e');
     }
   }
 
@@ -111,7 +141,6 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
         ),
         const SizedBox(height: 8),
 
-        // عرض قائمة الأصوات المدمجة
         ..._builtInVoices.map((voice) {
           final isSelected = voice.embeddingPath == settings.voicePath;
           return RadioListTile<String>(
@@ -126,16 +155,14 @@ class _VoiceManagerState extends ConsumerState<VoiceManager> {
             onChanged: (val) async {
               if (val != null) {
                 await settingsNotifier.updateVoice(voice.embeddingPath, voice.name);
-                // إعادة تهيئة المحرك بالصوت الجديد
+                // Re-initialize engine with new voice
                 ref.read(readerProvider.notifier).initEngine();
               }
             },
           );
         }),
-
         const SizedBox(height: 8),
-        // إزالة زر رفع الصوت نهائياً
-        // يمكن إضافة زر لتحديث القائمة إذا أردنا
+        // Remove upload button as voices are built-in
       ],
     );
   }

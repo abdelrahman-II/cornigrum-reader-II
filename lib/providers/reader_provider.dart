@@ -262,6 +262,17 @@ class ReaderNotifier extends StateNotifier<ReaderState> {
     }
   }
 
+  /// Reloads the currently loaded book with fresh delimiter settings.
+  Future<void> reloadCurrentBook() async {
+    final book = state.currentBook;
+    if (book != null && book.chapters.isNotEmpty) {
+      // Re-load the same chapter and sentence
+      final chapterIdx = state.currentChapterIndex.clamp(0, book.chapters.length - 1);
+      final sentenceIdx = state.currentSentenceIndex;
+      loadBook(book, chapterIndex: chapterIdx, sentenceIndex: sentenceIdx);
+    }
+  }
+
   void _startStatusPolling() {
     _statusPollTimer?.cancel();
     _statusPollTimer = Timer.periodic(const Duration(milliseconds: 100), (_) async {
